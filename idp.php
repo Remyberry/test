@@ -164,6 +164,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "<strong>Success!</strong> Your IDP has been submitted to " . htmlspecialchars($dept_head_name) . " for review.";
             $message_type = "success";
         }
+    } elseif (isset($_POST['submit_completion_review'])) {
+        // Submit for completion review
+        if ($record_id > 0) {
+            $new_status = 'For Completion Review';
+            $update_query = "UPDATE records SET content = ?, period = ?, document_status = ? WHERE id = ? AND user_id = ?";
+            $stmt = $conn->prepare($update_query);
+            $stmt->bind_param("sssii", $content_json, $period, $new_status, $record_id, $user_id);
+
+            if ($stmt->execute()) {
+                $dept_head_name = "your department head"; // Default value
+                
+                $dept_head_query = "SELECT u.name FROM users u 
+                                    WHERE u.department_id = ? AND u.role = 'department_head'";
+                $dept_stmt = $conn->prepare($dept_head_query);
+                $dept_stmt->bind_param("i", $user_department_id);
+                $dept_stmt->execute();
+                $dept_head_result = $dept_stmt->get_result();
+                $dept_head = ($dept_head_result->num_rows > 0) ? $dept_head_result->fetch_assoc() : null;
+                if ($dept_head) {
+                    $dept_head_name = $dept_head['name'];
+                }
+                $dept_stmt->close();
+
+                $message = "<strong>Success!</strong> Your updated IDP has been submitted to " . htmlspecialchars($dept_head_name) . " for final review.";
+                $message_type = "success";
+            } else {
+                $message = "Error submitting IDP for completion review: " . $conn->error;
+                $message_type = "danger";
+            }
+            $stmt->close();
+        } else {
+            $message = "Cannot submit for review. Invalid record ID.";
+            $message_type = "danger";
+        }
     }
 }
 
@@ -202,7 +236,7 @@ if ($current_record_id == 0) {
     $start_m = ($curr_month <= 6) ? 1 : 7;
     $end_m = ($curr_month <= 6) ? 6 : 12;
     
-    $check_sql = "SELECT id FROM records WHERE user_id = ? AND form_type = 'IDP' AND document_status IN ('Approved', 'Pending', 'Submitted', 'For Review') AND YEAR(date_submitted) = ? AND MONTH(date_submitted) BETWEEN ? AND ? LIMIT 1";
+    $check_sql = "SELECT id FROM records WHERE user_id = ? AND form_type = 'IDP' AND document_status IN ('Approved', 'Pending', 'In Progress', 'Submitted', 'For Review', 'For Completion Review') AND YEAR(date_submitted) = ? AND MONTH(date_submitted) BETWEEN ? AND ? LIMIT 1";
     $check_stmt = $conn->prepare($check_sql);
     $check_stmt->bind_param("iiii", $user_id, $curr_year, $start_m, $end_m);
     $check_stmt->execute();
@@ -241,8 +275,8 @@ if (empty($idp_entries)) {
 }
 
 // Determine if we are in Phase 2 (Accomplishment Reporting)
-// This assumes 'Approved' is the status set by DH after accepting the initial plan
-$is_phase_2 = ($record_status === 'Approved');
+// This happens after the DH's initial acceptance, which sets the status to 'In Progress'.
+$is_phase_2 = (($record_status === 'In Progress') || ($record_status === 'For Completion Review'));
 
 // Generate Period Options for Dropdown (Past, Current, Next, Next Year's)
 $period_options = [];
@@ -306,7 +340,7 @@ foreach ($offsets as $offset) {
                                     <div class="col-md-6"><p><strong>Department:</strong> <?php echo htmlspecialchars($department_name); ?></p></div>
                                 </div>
                                 <?php if($record_status): ?>
-                                    <p><strong>Status:</strong> <span class="badge bg-<?php echo ($record_status == 'Approved' ? 'success' : ($record_status == 'Pending' ? 'warning' : 'secondary')); ?>"><?php echo $record_status; ?></span></p>
+                                    <p><strong>Status:</strong> <span class="badge bg-<?php echo ($record_status == 'Approved' ? 'success' : (($record_status == 'Pending' || $record_status == 'For Review' || $record_status == 'For Completion Review') ? 'warning' : 'secondary')); ?>"><?php echo $record_status; ?></span></p>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -344,9 +378,9 @@ foreach ($offsets as $offset) {
                                                 <th>Main Objective/s</th>
                                                 <th>Plan of Action</th>
                                                 <?php if ($is_phase_2): ?>
-                                                    <th>Status</th>
+                                                    <th>Status (is the plan accomplished or not):</th>
                                                     <th>Date Accomplished</th>
-                                                    <th>Results of Plan</th>
+                                                    <th>Results of Plan</th>                                                
                                                 <?php endif; ?>
                                             </tr>
                                         </thead>
@@ -357,16 +391,7 @@ foreach ($offsets as $offset) {
                                                     <td><textarea class="form-control" name="plan_of_action[]" rows="5" placeholder="Enter plan of action here..." <?php echo ($is_phase_2 || ($record_status && $record_status !== 'Draft' && $record_status !== 'Rejected')) ? 'readonly' : ''; ?>><?php echo htmlspecialchars($entry['action_plan'] ?? ''); ?></textarea></td>
                                                     <?php if ($is_phase_2): ?>
                                                         <td>
-                                                            <select class="form-select" name="status[]">
-                                                                <?php 
-                                                                $statuses = ['Not Started', 'In Progress', 'Accomplished'];
-                                                                $current_status = $entry['status'] ?? 'Not Started';
-                                                                foreach ($statuses as $status) {
-                                                                    $selected = ($status === $current_status) ? 'selected' : '';
-                                                                    echo "<option value=\"{$status}\" {$selected}>{$status}</option>";
-                                                                }
-                                                                ?>
-                                                            </select>
+                                                            <textarea class="form-control" name="status[]" rows="5" placeholder="Enter status (e.g., Accomplished, In Progress) and any relevant details..."><?php echo htmlspecialchars($entry['status'] ?? 'Not Started'); ?></textarea>
                                                         </td>
                                                         <td><input type="text" class="form-control" name="date_accomplished[]" placeholder="e.g., YYYY-MM-DD or Period" value="<?php echo htmlspecialchars($entry['date_accomplished'] ?? ''); ?>"></td>
                                                         <td><textarea class="form-control" name="results[]" rows="5" placeholder="Enter results or outcomes..."><?php echo htmlspecialchars($entry['results'] ?? ''); ?></textarea></td>
@@ -381,8 +406,9 @@ foreach ($offsets as $offset) {
                             </div>
                             
                             <?php if ($is_phase_2): ?>
-                                <div class="d-flex justify-content-end mt-4">
-                                    <button type="submit" name="save_draft" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Update Progress</button>
+                                <div class="d-flex justify-content-between mt-4">
+                                    <button type="submit" name="save_draft" class="btn btn-secondary btn-lg"><i class="fas fa-save"></i> Save Progress</button>
+                                    <button type="submit" name="submit_completion_review" class="btn btn-success btn-lg" onclick="return confirm('Are you sure you want to submit for final review?');"><i class="fas fa-paper-plane"></i> Submit for Final Review</button>
                                 </div>
                             <?php elseif ($current_record_id > 0 && $record_status !== 'Draft' && $record_status !== 'Rejected'): ?>
                                 <div class="alert alert-info mt-4">This IDP has been submitted. Status: <strong><?php echo $record_status; ?></strong></div>
@@ -394,7 +420,7 @@ foreach ($offsets as $offset) {
                             <?php endif; ?>
                         </form>
                 </div>
-                <div class="tab-pane fade <?php echo ($idp_history && $current_record_id == 0) ? 'show active' : ''; ?>" id="history">
+                <div class="tab-pane fade <?php echo ($idp_history) ? 'show active' : ''; ?>" id="history">
                     <div class="table-responsive">
                         <table class="table table-hover">
                              <thead>
@@ -427,7 +453,7 @@ foreach ($offsets as $offset) {
                                         <td><?php echo date('M d, Y', strtotime($record['date_submitted'] ?? $record['date_created'])); ?></td>
                                         <td>
                                             <a href="view_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i> View</a>
-                                            <?php if ($user_role == 'regular_employee' && $record['document_status'] == 'Approved'): ?>
+                                            <?php if ($user_role == 'regular_employee' && $record['document_status'] == 'In Progress'): ?>
                                                 <a href="idp.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-success me-1"><i class="bi bi-check2-circle"></i> Update Progress</a>
                                             <?php endif; ?>
                                              <?php if ($user_role == 'regular_employee' && ($record['document_status'] == 'Draft' || $record['document_status'] == 'Rejected')): ?>

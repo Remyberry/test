@@ -54,6 +54,7 @@ $status_counts = [
     'Approved' => 0,
     'Rejected' => 0,
     'Draft' => 0,
+    'For Completion Review' => 0, // Added for new review stage
     'For Review' => 0
 ];
 
@@ -154,6 +155,15 @@ $periods_result = $stmt->get_result();
                 </div>
                 <div class="col-md-3 mb-3">
                     <div class="bg-light rounded p-3 text-center">
+                        <h6 class="text-muted mb-2">Pending Final Review</h6>
+                        <h2 class="mb-0"><?php echo $status_counts['For Completion Review'] ?? 0; ?></h2>
+                        <?php if (($status_counts['For Completion Review'] ?? 0) > 0): ?>
+                        <span class="badge bg-primary">Needs Action</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="bg-light rounded p-3 text-center">
                         <h6 class="text-muted mb-2">In Progress</h6>
                         <h2 class="mb-0"><?php echo $status_counts['In Progress']; ?></h2>
                     </div>
@@ -208,6 +218,7 @@ $periods_result = $stmt->get_result();
                             <option value="Pending" <?php echo ($filter_status == "Pending") ? "selected" : ""; ?>>Pending (Initial)</option>
                             <option value="In Progress" <?php echo ($filter_status == "In Progress") ? "selected" : ""; ?>>In Progress</option>
                             <option value="For Review" <?php echo ($filter_status == "For Review") ? "selected" : ""; ?>>For Review (Final)</option>
+                            <option value="For Completion Review" <?php echo ($filter_status == "For Completion Review") ? "selected" : ""; ?>>For Completion Review</option>
                             <option value="Approved" <?php echo ($filter_status == "Approved") ? "selected" : ""; ?>>Approved</option>
                         </select>
                     </div>
@@ -249,6 +260,7 @@ $periods_result = $stmt->get_result();
                                             case 'Pending': $status_badge = 'warning text-dark'; break;
                                             case 'In Progress': $status_badge = 'info text-dark'; break;
                                             case 'For Review': $status_badge = 'primary'; break;
+                                            case 'For Completion Review': $status_badge = 'primary'; break; // Added
                                             case 'Rejected': $status_badge = 'danger'; break;
                                         }
                                         ?>
@@ -261,7 +273,7 @@ $periods_result = $stmt->get_result();
                                             <a href="view_record.php?id=<?php echo $idp['id']; ?>" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-eye"></i> View
                                             </a>
-                                            <?php if ($idp['document_status'] == 'Pending' || $idp['document_status'] == 'For Review'): ?>
+                                            <?php if ($idp['document_status'] == 'Pending' || $idp['document_status'] == 'For Review' || $idp['document_status'] == 'For Completion Review'): ?>
                                                 <a href="edit_record.php?id=<?php echo $idp['id']; ?>" class="btn btn-sm btn-success">
                                                     <i class="bi bi-check-circle"></i> Review
                                                 </a>

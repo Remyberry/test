@@ -359,6 +359,10 @@ $users_result = $conn->query($users_query);
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label for="position" class="form-label">Position</label>
+                            <input type="text" class="form-control" id="position" name="position" required>
+                        </div>
+                        <div class="mb-3">
                             <label for="department_id" class="form-label">Department</label>
                             <select class="form-select" id="department_id" name="department_id">
                                 <option value="">No Department</option>

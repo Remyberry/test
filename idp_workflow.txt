@@ -1,0 +1,129 @@
+
+Workflow of idp.php
+
+I. Page Initialization and Access Control
+
+1.  Landing on idp.php:
+    *   User navigates to idp.php (either directly, or via an "Edit" / "Update Progress" link from the history table, which passes id via GET).
+    *   $page_title is set to "Individual Development Plan - EPMS".
+2.  Includes:
+    *   includes/header.php: Sets up session, includes common CSS/JS, and starts the HTML document.
+    *   includes/form_workflow.php: Contains functions related to form submission workflow (e.g., submitForm), though idp.php also has manual submission logic as a fallback.
+    *   includes/db_connect.php: Establishes a database connection.
+3.  Access Control:
+    *   Checks if $_SESSION['user_role'] is set and if the user's role is regular_employee, department_head, president, or admin.
+    *   If not authorized, redirects to access_denied.php and exit().
+4.  User and Department Information Retrieval:
+    *   $user_id, $user_role, $user_department_id are retrieved from $_SESSION.
+    *   $employee_name is retrieved from $_SESSION['user_name'].
+    *   $department_name is fetched from the departments table using user_department_id.
+
+II. Handling Form Submissions ($_SERVER['REQUEST_METHOD'] === 'POST')
+
+If the page is accessed via a POST request (i.e., a form has been submitted):
+
+1.  Collect Form Data:
+    *   $record_id: Existing record ID (if any) from a hidden input.
+    *   $period: Period covered for the IDP.
+    *   $main_objectives, $plan_of_action, $statuses: Arrays of data for each IDP goal.
+    *   $is_phase_2_update: Boolean flag if phase 2 specific fields (date_accomplished, results) are present. These are only visible when $is_phase_2 is true.
+    *   $new_idp_goals: An array structured to hold objective, action plan, status, date accomplished, and results for each goal. Empty objectives are ignored unless it's the only row.
+    *   $content_json: The $new_idp_goals array is JSON-encoded to be stored in the content column of the records table.
+
+2.  Process Action (based on which submit button was pressed):
+
+    *   save_draft (Save as Draft / Save Progress):
+        *   If $record_id > 0 (Existing Draft/Record):
+            *   UPDATE records where id = $record_id and user_id = $user_id.
+            *   Updates content and period.
+            *   Sets $message and $message_type for success/error.
+        *   If $record_id == 0 (New Draft):
+            *   INSERT INTO records (user_id, form_type, period, content, document_status) VALUES (?, 'IDP', ?, ?, 'Draft').
+            *   $record_id is updated with the new insert_id.
+            *   Sets $message and $message_type for success/error.
+
+    *   submit_idp (Submit for Review - Initial Submission):
+        *   Fetches the name and email of the department_head for the user's department to use in the success message.
+        *   Uses submitForm function (from form_workflow.php): If submitForm exists, it's called with $conn, $user_id, 'IDP', $period, $content_json.
+            *   If submitForm is successful, it sets $message (including the department head's name) and $message_type to "success".
+            *   If submitForm fails, it sets $message and $message_type to "danger".
+        *   Fallback Manual Submission (if submitForm doesn't exist):
+            *   If $record_id > 0, UPDATE records with new content, period, and document_status ('Pending' or 'Submitted').
+            *   If $record_id == 0, INSERT INTO records with user_id, 'IDP', period, content, and document_status ('Pending' or 'Submitted').
+            *   Sets $message and $message_type for success.
+
+    *   submit_completion_review (Submit for Final Review - Phase 2 Submission):
+        *   Requires $record_id > 0: If not, displays an error.
+        *   UPDATE records where id = $record_id and user_id = $user_id.
+        *   Updates content, period, and sets document_status to 'For Completion Review'.
+        *   Fetches the name of the department_head for the success message.
+        *   Sets $message and $message_type for success/error.
+
+III. Data Fetching and Preparation for Display
+
+This section runs after any POST submission (if applicable) or on initial GET request.
+
+1.  Fetch IDP History ($idp_history):
+    *   regular_employee: Selects all 'IDP' records for the current user_id, ordered by date_submitted then date_created.
+    *   department_head: Selects all 'IDP' records from users within their department_id, including the employee_name from the users table.
+    *   admin/president: Selects all 'IDP' records for all users, including employee_name.
+    *   The results are stored in the $idp_history array.
+
+2.  Determine Current Record to Display ($current_record_id):
+    *   If id is provided in the URL ($_GET['id']), it's used.
+    *   Otherwise, if a form was just submitted, the $record_id from the POST handling (which could be a newly inserted ID) is used.
+    *   Auto-detection for New Submissions: If no id is specified and no $record_id exists from a POST, the system tries to find an existing 'IDP' record for the user_id in the current half of the year (January-June or July-December) with a document_status of 'Approved', 'Pending', 'In Progress', 'Submitted', 'For Review', or 'For Completion Review'. If found, its id becomes $current_record_id.
+
+3.  Fetch Details of the $current_record_id (if > 0):
+    *   SELECT content, period, document_status FROM records for the $current_record_id and user_id.
+    *   $content_json is decoded into $content_array.
+    *   $idp_entries: Populated from $content_array['idp_goals'].
+    *   $current_period: Populated from the fetched record.
+    *   $record_status: Populated from the fetched record.
+    *   If no entries are found (e.g., brand new IDP), $idp_entries gets one empty default row.
+
+4.  Determine is_phase_2:
+    *   $is_phase_2 is set to true if $record_status is 'In Progress' or 'For Completion Review'. This indicates the IDP has been initially approved by the DH and the employee is now updating progress.
+
+5.  Generate Period Options ($period_options):
+    *   Calculates and generates a list of period strings (e.g., "January YYYY - June YYYY") for dropdown selection. It typically includes past, current, and future half-year periods.
+
+IV. HTML Rendering and User Interface
+
+1.  Header and Messages:
+    *   Includes includes/header.php.
+    *   Displays any $message (success or error) generated during POST submission.
+2.  Page Title and Print Button:
+    *   Displays "Individual Development Plan".
+    *   If $current_record_id > 0, a "Print IDP" button is shown, linking to print_record.php?id=$current_record_id.
+3.  Tabbed Interface:
+    *   "Edit IDP" / "Create IDP" / "Update Progress" Tab (#edit-idp):
+        *   Employee Information Card: Displays Employee name, Department name, and Status of the current record (if $record_status exists) with appropriate badge styling.
+        *   Main Form:
+            *   Hidden input for record_id.
+            *   Period Covered:
+                *   If $current_record_id > 0 and record_status is not 'Draft' or 'Rejected', the period is readonly.
+                *   Otherwise, a <select> dropdown (period_options) is shown for selecting the period.
+            *   Phase 2 Alert: If $is_phase_2 is true, an informational alert is displayed indicating the accomplishment phase. An is_phase_2_update hidden input is set.
+            *   Development Goals Table:
+                *   Table headers change based on $is_phase_2:
+                    *   If $is_phase_2 is true, additional columns for "Status", "Date Accomplished", and "Results of Plan" are shown.
+                *   Each $idp_entries item is rendered as a row.
+                *   main_objectives and plan_of_action fields are readonly if $is_phase_2 or ($record_status is not 'Draft' and not 'Rejected').
+                *   status, date_accomplished, and results fields are only visible and editable when $is_phase_2 is true.
+            *   Action Buttons:
+                *   If $is_phase_2 is true: "Save Progress" (save_draft) and "Submit for Final Review" (submit_completion_review) buttons are displayed.
+                *   If $current_record_id > 0 and record_status is not 'Draft' and not 'Rejected' (and not phase 2): An info alert stating the IDP has been submitted.
+                *   Otherwise (initial creation or editing draft/rejected): "Save as Draft" (save_draft) and "Submit for Review" (submit_idp) buttons are displayed.
+    *   "IDP History" Tab (#history):
+        *   Displays a table of $idp_history records.
+        *   Columns include: Employee (if not regular_employee), Period, Status (with color-coded badges), Date Updated, Actions.
+        *   Actions Column:
+            *   "View" button (view_record.php).
+            *   If regular_employee and document_status is 'Approved': "Update Progress" button (idp.php?id=...).
+            *   If regular_employee and document_status is 'Draft' or 'Rejected': "Edit" button (idp.php?id=...).
+
+V. End of Workflow:
+
+*   The page concludes by including includes/footer.php, which closes the HTML document and includes common footer scripts.
+*   The database connection ($conn) is closed (implicitly or explicitly).

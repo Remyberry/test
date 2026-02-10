@@ -39,11 +39,11 @@ while ($row = $result_records_by_type->fetch_assoc()) {
 }
 
 // Records by status
-$sql_records_by_status = "SELECT status, COUNT(*) as count FROM records GROUP BY status";
+$sql_records_by_status = "SELECT document_status, COUNT(*) as count FROM records GROUP BY document_status";
 $result_records_by_status = $conn->query($sql_records_by_status);
 $records_by_status = [];
 while ($row = $result_records_by_status->fetch_assoc()) {
-    $records_by_status[$row['status']] = $row['count'];
+    $records_by_status[$row['document_status']] = $row['count'];
 }
 
 // Recent users

@@ -17,7 +17,7 @@ require_once 'includes/db_connect.php';
 // Get filter parameters from the URL
 $filter_period = isset($_GET['period']) && $_GET['period'] !== 'all' ? $_GET['period'] : null;
 $filter_department = isset($_GET['department']) && $_GET['department'] !== 'all' ? $_GET['department'] : null;
-$filter_status = isset($_GET['status']) && $_GET['status'] !== 'all' ? $_GET['status'] : null;
+$filter_status = isset($_GET['document_status']) && $_GET['document_status'] !== 'all' ? $_GET['document_status'] : null;
 
 
 // Build the query
@@ -26,7 +26,7 @@ $query = "SELECT
             d.name AS department_name,
             u.name AS head_name,
             r.period,
-            r.status,
+            r.document_status,
             AVG(de.a_rating) AS average_rating
           FROM
             records r
@@ -56,12 +56,12 @@ if ($filter_department) {
 }
 
 if ($filter_status) {
-    $query .= " AND r.status = ?";
+    $query .= " AND r.document_status = ?";
     $params[] = $filter_status;
     $types .= "s";
 }
 
-$query .= " GROUP BY r.id, d.name, u.name, r.period, r.status ORDER BY d.name, r.period;";
+$query .= " GROUP BY r.id, d.name, u.name, r.period, r.document_status ORDER BY d.name, r.period;";
 
 // Prepare and execute the query
 $stmt = $conn->prepare($query);
@@ -170,7 +170,7 @@ function getRatingInterpretation($rating) {
                                     <td><?php echo htmlspecialchars($row['department_name']); ?></td>
                                     <td><?php echo htmlspecialchars($row['head_name']); ?></td>
                                     <td><?php echo htmlspecialchars($row['period']); ?></td>
-                                    <td><?php echo htmlspecialchars($row['status']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['document_status']); ?></td>
                                     <td><?php echo $row['average_rating'] !== null ? number_format($row['average_rating'], 2) : 'N/A'; ?></td>
                                     <td><?php echo getRatingInterpretation($row['average_rating']); ?></td>
                                 </tr>

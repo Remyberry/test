@@ -87,8 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        
-        $conn->close();
     }
 }
 
@@ -115,8 +113,6 @@ if ($result->num_rows > 0) {
     $department_name = $row['name'];
     $user_avatar = $row['avatar'];
 }
-
-$conn->close();
 
 // Format role for display
 $role_display = "";
@@ -158,7 +154,7 @@ if (isset($_SESSION['error_message'])) {
                         <?php if ($user_avatar): ?>
                             <img src="<?php echo htmlspecialchars($user_avatar); ?>" alt="avatar" class="profile-avatar">
                         <?php else: ?>
-                            <img src="images/default-avatar.jpg" alt="default avatar" class="profile-avatar">
+                            <img src="images/default-avatar.png" alt="default avatar" class="profile-avatar">
                         <?php endif; ?>
                         <div class="avatar-edit" data-bs-toggle="modal" data-bs-target="#changeAvatarModal">
                             <i class="bi bi-pencil-fill"></i>
@@ -301,4 +297,6 @@ if (isset($_SESSION['error_message'])) {
 <?php
 // Include footer
 include_once('includes/footer.php');
+
+$conn->close();
 ?> 

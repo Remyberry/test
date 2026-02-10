@@ -57,7 +57,7 @@ if ($user_role == 'admin' || $user_role == 'president') {
     if ($record['form_type'] == 'IPCR' && in_array($status, ['Distributed', 'For Review', 'Rejected'])) {
         $can_edit = true;
     }
-    if ($record['form_type'] == 'IDP' && in_array($status, ['Pending', 'For Review', 'Rejected'])) {
+    if ($record['form_type'] == 'IDP' && in_array($status, ['Pending', 'For Review', 'For Completion Review', 'Rejected'])) {
         $can_edit = true;
     }
     // Allow DH to edit DPCRs as before
@@ -515,7 +515,7 @@ switch ($record['form_type']) {
                         <strong>Review Mode:</strong> 
                         <?php if ($status == 'Pending'): ?>
                             This is an initial submission. Review the objectives and "Accept" to allow the employee to start their progress, or "Reject" to request changes.
-                        <?php elseif ($status == 'For Review'): ?>
+                        <?php elseif ($status == 'For Review' || $status == 'For Completion Review'): ?>
                             This is a final submission. Review the accomplishments and "Approve" to finalize, or "Reject".
                         <?php else: ?>
                             View only.
@@ -544,7 +544,7 @@ switch ($record['form_type']) {
                                         <textarea class="form-control" readonly rows="4"><?php echo htmlspecialchars($entry['action_plan'] ?? ''); ?></textarea>
                                     </td>
                                     <td>
-                                        <input type="text" class="form-control" readonly value="<?php echo htmlspecialchars($entry['status'] ?? 'Not Started'); ?>">
+                                        <textarea class="form-control" readonly rows="4"><?php echo htmlspecialchars($entry['status'] ?? 'Not Started'); ?></textarea>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -556,7 +556,7 @@ switch ($record['form_type']) {
                         <?php if ($user_role == 'department_head' && $status == 'Pending'): ?>
                             <button type="submit" name="reject_idp" class="btn btn-danger me-2" onclick="return confirm('Reject this initial IDP?');">Reject</button>
                             <button type="submit" name="accept_idp" class="btn btn-success" onclick="return confirm('Accept this IDP? The employee will be notified to start their progress.');">Accept Plan</button>
-                        <?php elseif ($user_role == 'department_head' && $status == 'For Review'): ?>
+                        <?php elseif ($user_role == 'department_head' && $status == 'For Completion Review'): ?>
                             <button type="submit" name="reject_idp" class="btn btn-danger me-2" onclick="return confirm('Reject this IDP submission?');">Reject</button>
                             <button type="submit" name="approve_idp" class="btn btn-success" onclick="return confirm('Approve this IDP?');">Approve</button>
                         <?php endif; ?>
@@ -572,6 +572,7 @@ switch ($record['form_type']) {
                 <!-- Hidden field for JSON content -->
                 <input type="hidden" name="content" id="form-content-json">
                 
+                <?php if ($record['form_type'] !== 'IDP'): // This block is not needed for IDP which has its own buttons ?>
                 <div class="d-flex justify-content-end mt-4">
                     <a href="view_record.php?id=<?php echo $record_id; ?>" class="btn btn-secondary me-2">Cancel</a>
                     
@@ -598,6 +599,7 @@ switch ($record['form_type']) {
                         <button type="submit" name="update_record" class="btn btn-primary">Update Record</button>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </form>
         </div>
     </div>

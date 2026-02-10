@@ -43,7 +43,7 @@ if ($user_role === 'president') {
     $total_records = $result_records->fetch_assoc()['total'];
 
     // Pending reviews
-    $sql_pending = "SELECT COUNT(*) as total FROM records WHERE status = 'Pending'";
+    $sql_pending = "SELECT COUNT(*) as total FROM records WHERE document_status = 'Pending'";
     $result_pending = $conn->query($sql_pending);
     $total_pending = $result_pending->fetch_assoc()['total'];
 
