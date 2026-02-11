@@ -80,26 +80,46 @@ function getPDSCheck($data, $key, $value) {
 $entries = [];
 
 if ($record['form_type'] === 'DPCR') {
-    $entries_query = "SELECT * FROM dpcr_entries WHERE record_id = ? ORDER BY category, id";
-    $stmt = $conn->prepare($entries_query);
-    $stmt->bind_param("i", $record_id);
-    $stmt->execute();
-    $entries_result = $stmt->get_result();
-    
-    $strategic_entries = [];
-    $core_entries = [];
-    
-    while ($entry = $entries_result->fetch_assoc()) {
-        if ($entry['category'] === 'Strategic') {
-            $strategic_entries[] = $entry;
-        } else if ($entry['category'] === 'Core') {
-            $core_entries[] = $entry;
+    $content = json_decode($record['content'], true);
+    $strategic_functions = [];
+    $core_functions = [];
+    $support_functions = [];
+
+    if ($content !== null && is_array($content)) {
+        // Check for new vs. old data structure. New structure has 'indicators'.
+        if (isset($content['strategic_functions'][0]['indicators']) || isset($content['core_functions'][0]['indicators']) || isset($content['support_functions'][0]['indicators'])) {
+            // New nested structure
+            $strategic_functions = $content['strategic_functions'] ?? [];
+            $core_functions = $content['core_functions'] ?? [];
+            $support_functions = $content['support_functions'] ?? [];
+        } else if (!empty($content['strategic_functions']) || !empty($content['core_functions']) || !empty($content['support_functions'])) {
+            // Old flat structure, transform it for viewing
+            $transform_legacy = function($entries) {
+                if (empty($entries)) return [];
+                $grouped = [];
+                // Group by major_output as it was repeated in the old format
+                foreach ($entries as $entry) {
+                    $mfo = $entry['major_output'] ?? 'Uncategorized';
+                    if (!isset($grouped[$mfo])) {
+                        $grouped[$mfo] = [
+                            'major_output' => $mfo,
+                            'indicators' => []
+                        ];
+                    }
+                    $grouped[$mfo]['indicators'][] = $entry;
+                }
+                return array_values($grouped);
+            };
+            $strategic_functions = $transform_legacy($content['strategic_functions'] ?? []);
+            $core_functions = $transform_legacy($content['core_functions'] ?? []);
+            $support_functions = $transform_legacy($content['support_functions'] ?? []);
         }
     }
     
     $entries = [
-        'strategic' => $strategic_entries,
-        'core' => $core_entries
+        'strategic' => $strategic_functions,
+        'core' => $core_functions,
+        'support' => $support_functions,
     ];
 } else if ($record['form_type'] === 'IPCR') {
     $content = json_decode($record['content'], true);
@@ -432,7 +452,7 @@ $conn->close();
             }
 
             @page {
-                size: <?php echo ($form_type === 'IDP' || $form_type === 'PDS' ? 'letter portrait' : ($form_type === 'IPCR' ? 'legal landscape' : 'letter landscape')); ?>; 
+                size: <?php echo ($form_type === 'IDP' ? 'letter portrait' : (($form_type === 'IPCR' || $form_type === 'DPCR') ? 'legal landscape' : 'letter landscape')); ?>; 
                 margin: 0.5in;
             }
             
@@ -641,9 +661,9 @@ $conn->close();
             <div style="text-align: center; margin-bottom: 10px;">
                 <h3 class="dpcr-title">DEPARTMENT PERFORMANCE COMMITMENT AND REVIEW (DPCR)</h3>
                 <div class="dpcr-period">
-                    i<tr>
-                    <td class="label">Employee:</td>
-                    <td><?php echo htmlspecialchars($record['employee_name']); ?></td>
+                    I<tr>
+                    <td class="label"><?php echo htmlspecialchars($record['employee_position']); ?></td>
+                    <td style="font-weight: bold;"><?php echo htmlspecialchars($record['employee_name']); ?></td>
                 </tr>commit to deliver and agree to be rated on the attainment of the following targets in accordance with the indicated measures for the period
                     <span style="border-bottom: 1px solid #000; padding: 0 50px;">
                         <?php 
@@ -717,45 +737,58 @@ $conn->close();
                 </thead>
                 <tbody>
                     <?php 
-                    $current_section = '';
-                    $section_count = 0;
-                    
-                    // Combine Strategic and Core entries for unified table display
-                    $combined_entries = array_merge($entries['strategic'], $entries['core']);
-                    
-                    if (empty($combined_entries)): ?>
-                    <tr>
-                        <td colspan="10" style="text-align: center;">No DPCR outputs defined</td>
-                    </tr>
-                    <?php else: ?>
-                        <?php foreach ($combined_entries as $entry): ?>
-                        <?php 
-                            // Check for new section (Strategic, Core, Support - though Support is not in your image)
-                            if ($entry['category'] !== $current_section) {
-                                $current_section = $entry['category'];
-                                $section_count++;
-                                $section_title = $current_section . ($section_count === 1 ? ' (45%)' : ' (55%)'); // Adjust percentages as needed
-                        ?>
-                            <tr>
-                                <td colspan="10" style="font-weight: bold; background-color: #f0f0f0;"><?php echo htmlspecialchars($section_title); ?></td>
-                            </tr>
-                        <?php
-                            }
-                        ?>
+                    $render_section = function($section_entries, $section_title, $weight) {
+                        if (empty($section_entries)) {
+                            return;
+                        }
+                    ?>
                         <tr>
-                            <td class="col-mfo"><?php echo nl2br(htmlspecialchars($entry['major_output'])); ?></td>
-                            <td class="col-indicators"><?php echo nl2br(htmlspecialchars($entry['success_indicators'])); ?></td>
-                            <td class="col-budget" style="text-align: right;"><?php echo htmlspecialchars($entry['budget'] ? number_format($entry['budget'], 2) : 'N/A'); ?></td>
-                            <td class="col-accountable"><?php echo htmlspecialchars($entry['accountable']); ?></td>
-                            <td class="col-accomplishments"><?php echo nl2br(htmlspecialchars($entry['actual_accomplishments'] ?? '')); ?></td>
-                            <td class="col-q"><?php echo htmlspecialchars($entry['q_rating'] ?? ''); ?></td>
-                            <td class="col-q"><?php echo htmlspecialchars($entry['e_rating'] ?? ''); ?></td>
-                            <td class="col-q"><?php echo htmlspecialchars($entry['t_rating'] ?? ''); ?></td>
-                            <td class="col-q"><?php echo htmlspecialchars($entry['a_rating'] ?? ''); ?></td>
-                            <td class="col-remarks"><?php echo htmlspecialchars($entry['remarks'] ?? ''); ?></td>
+                            <td colspan="10" style="font-weight: bold; background-color: #f0f0f0;"><?php echo htmlspecialchars($section_title) . ' ' . htmlspecialchars($weight); ?></td>
                         </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <?php
+                        foreach ($section_entries as $mfo_entry) {
+                            $indicators = $mfo_entry['indicators'] ?? [];
+                            $indicator_count = count($indicators);
+                            if ($indicator_count === 0) continue;
+
+                            $first_indicator = true;
+                            foreach ($indicators as $indicator) {
+                    ?>
+                                <tr>
+                                    <?php if ($first_indicator): ?>
+                                        <td class="col-mfo" rowspan="<?php echo $indicator_count; ?>"><?php echo nl2br(htmlspecialchars($mfo_entry['major_output'])); ?></td>
+                                    <?php endif; ?>
+                                    <td class="col-indicators"><?php echo nl2br(htmlspecialchars($indicator['success_indicators'])); ?></td>
+                                    <td class="col-budget" style="text-align: right;"><?php echo isset($indicator['budget']) && is_numeric($indicator['budget']) ? number_format($indicator['budget'], 2) : 'N/A'; ?></td>
+                                    <td class="col-accountable"><?php echo htmlspecialchars($indicator['accountable']); ?></td>
+                                    <td class="col-accomplishments"><?php echo nl2br(htmlspecialchars($indicator['actual_accomplishments'] ?? '')); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($indicator['q_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($indicator['e_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($indicator['t_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($indicator['a_rating'] ?? ''); ?></td>
+                                    <td class="col-remarks"><?php echo htmlspecialchars($indicator['remarks'] ?? ''); ?></td>
+                                </tr>
+                    <?php
+                                $first_indicator = false;
+                            }
+                        }
+                    };
+
+                    $computation_type = $record['computation_type'] ?? 'Type1';
+                    $strategic_weight = ($computation_type === 'Type2') ? '(45%)' : '(45%)';
+                    $core_weight = ($computation_type === 'Type2') ? '(45%)' : '(55%)';
+
+                    $render_section($entries['strategic'] ?? [], 'I. Strategic Functions', $strategic_weight);
+                    $render_section($entries['core'] ?? [], 'II. Core Functions', $core_weight);
+                    
+                    if ($computation_type === 'Type2' && !empty($entries['support'])) {
+                        $render_section($entries['support'], 'III. Support Functions', '(10%)');
+                    }
+
+                    if (empty($entries['strategic']) && empty($entries['core'])) {
+                        echo '<tr><td colspan="10" style="text-align: center;">No DPCR outputs defined</td></tr>';
+                    }
+                    ?>
                 </tbody>
             </table>
 

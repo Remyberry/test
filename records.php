@@ -33,16 +33,14 @@ if ($user_role == 'regular_employee') {
     $params[] = $user_id;
     $types .= "i";
 } elseif ($user_role == 'department_head') {
-    // Department heads see their own records and records from their department
-    $sql = "SELECT r.*, u.name as employee_name 
-            FROM records r 
-            JOIN users u ON r.user_id = u.id 
-            WHERE r.user_id = ? OR (u.department_id = ? AND r.form_type IN ('IPCR', 'IDP'))
+    // Department heads see only their own records
+    $sql = "SELECT r.*, u.name as employee_name
+            FROM records r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.user_id = ?
             ORDER BY r.date_submitted DESC, r.id DESC";
     $params[] = $user_id;
-    $params[] = $department_id;
-    $types .= "ii";
-} elseif ($user_role == 'president') {
+    $types .= "i";} elseif ($user_role == 'president') {
     // President sees all records
     $sql = "SELECT r.*, u.name as employee_name, d.name as department_name
             FROM records r 

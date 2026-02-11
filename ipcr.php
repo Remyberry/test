@@ -71,8 +71,8 @@ if ($user_role == 'regular_employee') {
 // For Employees, this shows their own forms. For DH, it shows forms they've created/distributed.
 $history_query_sql = "";
 if ($user_role == 'department_head') {
-    // A DH sees all IPCRs they have created for their staff
-    $history_query_sql = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE r.created_by = ? AND r.form_type = 'IPCR' ORDER BY r.date_created DESC";
+    // A DH sees their own IPCR history
+    $history_query_sql = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE r.user_id = ? AND r.form_type = 'IPCR' ORDER BY r.date_submitted DESC";
     $history_stmt = $conn->prepare($history_query_sql);
     $history_stmt->bind_param("i", $user_id);
 } else {
@@ -87,13 +87,21 @@ while ($row = $history_result->fetch_assoc()) {
     $ipcr_history[] = $row;
 }
 
-// This query is no longer needed as it's replaced by the more specific history query above.
-// Get existing IPCR records for current user
-// $records_query = "SELECT * FROM records WHERE user_id = ? AND form_type = 'IPCR' ORDER BY date_submitted DESC";
-// $stmt = $conn->prepare($records_query);
-// $stmt->bind_param("i", $user_id);
-// $stmt->execute();
-// $records_result = $stmt->get_result();
+// --- Tab Activation Logic for regular_employee ---
+$pending_tab_active = false;
+$history_tab_active = false;
+
+if ($user_role == 'regular_employee') {
+    // Default to pending forms tab if there are pending forms and no specific tab requested
+    if (count($pending_ipcr_for_employee) > 0 && !isset($_GET['tab'])) {
+        $pending_tab_active = true;
+    } elseif (isset($_GET['tab']) && $_GET['tab'] == 'pending') {
+        $pending_tab_active = true;
+    } else {
+        // Default to history tab if no pending forms or history tab is requested
+        $history_tab_active = true;
+    }
+}
 
 
 function getComputationTypes() {
@@ -274,7 +282,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                     </li>
                 <?php elseif ($user_role == 'regular_employee'): ?>
                     <li class="nav-item">
-                        <a class="nav-link active" href="#pending-forms" data-bs-toggle="tab">Pending IPCRs
+                        <a class="nav-link <?php echo $pending_tab_active ? 'active' : ''; ?>" href="#pending-forms" data-bs-toggle="tab">Pending IPCRs
                             <?php if (count($pending_ipcr_for_employee) > 0): ?>
                                 <span class="badge bg-danger ms-1"><?php echo count($pending_ipcr_for_employee); ?></span>
                             <?php endif; ?>
@@ -282,7 +290,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                     </li>
                 <?php endif; ?>
                 <li class="nav-item">
-                    <a class="nav-link <?php echo ($user_role == 'department_head') ? '' : 'active'; ?>" href="#history" data-bs-toggle="tab">IPCR History</a>
+                    <a class="nav-link <?php echo ($user_role == 'department_head') ? '' : ($history_tab_active ? 'active' : ''); ?>" href="#history" data-bs-toggle="tab">IPCR History</a>
                 </li>
             </ul>
         </div>
@@ -395,7 +403,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                 <?php endif; ?>
 
                 <?php if ($user_role == 'regular_employee'): ?>
-                <div class="tab-pane fade show active" id="pending-forms">
+                <div class="tab-pane fade <?php echo $pending_tab_active ? 'show active' : ''; ?>" id="pending-forms">
                     <h5 class="mb-3">IPCR Forms to Fill Out</h5>
                     <div class="list-group">
                         <?php if (count($pending_ipcr_for_employee) > 0): ?>
@@ -415,14 +423,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                 </div>
                 <?php endif; ?>
 
-                <div class="tab-pane fade <?php echo ($user_role == 'department_head') ? '' : 'show active'; ?>" id="history">
+                <div class="tab-pane fade <?php echo ($user_role == 'department_head') ? '' : ($history_tab_active ? 'show active' : ''); ?>" id="history">
                     <div class="table-responsive">
                         <table class="table table-hover">
                              <thead>
                                 <tr>
-                                    <?php if ($user_role == 'department_head'): ?>
-                                    <th>Employee</th>
-                                    <?php endif; ?>
                                     <th>Period</th>
                                     <th>Status</th>
                                     <th>Date Updated</th>
@@ -433,9 +438,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                                 <?php if (count($ipcr_history) > 0): ?>
                                     <?php foreach ($ipcr_history as $record): ?>
                                     <tr>
-                                        <?php if ($user_role == 'department_head'): ?>
-                                            <td><?php echo htmlspecialchars($record['employee_name']); ?></td>
-                                        <?php endif; ?>
                                         <td><?php echo htmlspecialchars($record['period']); ?></td>
                                         <td>
                                             <?php 
@@ -468,7 +470,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="5" class="text-center">No IPCR records found</td>
+                                        <td colspan="4" class="text-center">No IPCR records found</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>

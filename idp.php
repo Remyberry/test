@@ -32,6 +32,28 @@ $dept_result = $stmt->get_result();
 $department_name = ($dept_result->num_rows > 0) ? $dept_result->fetch_assoc()['name'] : 'N/A';
 $stmt->close();
 
+// --- Semi-annual Period Check and Active IDP Flag ---
+$curr_year = date('Y');
+$curr_month = date('n');
+$current_semi_annual_period_name = ($curr_month <= 6) ? "January $curr_year - June $curr_year" : "July $curr_year - December $curr_year";
+
+$has_active_idp_this_period = false;
+$active_idp_id_this_period = 0; // Stores ID of the active IDP for the current period
+
+// Check for any IDP for the current period that is not a draft or rejected, i.e., "active"
+$check_active_sql = "SELECT id FROM records WHERE user_id = ? AND form_type = 'IDP' AND period = ? AND document_status IN ('Pending', 'In Progress', 'For Review', 'For Completion Review', 'Submitted') LIMIT 1";
+$check_active_stmt = $conn->prepare($check_active_sql);
+$check_active_stmt->bind_param("is", $user_id, $current_semi_annual_period_name);
+$check_active_stmt->execute();
+$check_active_result = $check_active_stmt->get_result();
+
+if ($active_row = $check_active_result->fetch_assoc()) {
+    $has_active_idp_this_period = true;
+    $active_idp_id_this_period = $active_row['id'];
+}
+$check_active_stmt->close();
+// --- END Semi-annual Period Check ---
+
 // --- HANDLE POST SUBMISSION ---
 $message = '';
 $message_type = '';
@@ -208,10 +230,10 @@ if ($user_role == 'regular_employee') {
     $history_stmt = $conn->prepare($history_query);
     $history_stmt->bind_param("i", $user_id);
 } else if ($user_role == 'department_head') {
-    // A DH sees all IDPs from their department staff
-    $history_query = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE u.department_id = ? AND r.form_type = 'IDP' ORDER BY r.date_created DESC";
+    // A DH sees their own IDPs
+    $history_query = "SELECT * FROM records WHERE user_id = ? AND form_type = 'IDP' ORDER BY date_submitted DESC, date_created DESC";
     $history_stmt = $conn->prepare($history_query);
-    $history_stmt->bind_param("i", $user_department_id);
+    $history_stmt->bind_param("i", $user_id);
 } else { // Admin, President see all
     $history_query = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE r.form_type = 'IDP' ORDER BY r.date_created DESC";
     $history_stmt = $conn->prepare($history_query);
@@ -229,24 +251,15 @@ if(isset($history_stmt)) {
 // --- FETCH DATA (If Editing or after Save) ---
 $current_record_id = isset($_GET['id']) ? intval($_GET['id']) : ($record_id ?? 0);
 
-// Auto-detect existing submission for current period if no ID provided
+// If no specific ID was requested via GET and there's an active IDP for the current semi-annual period,
+// default to loading that active IDP. However, if a new draft was just saved (record_id is set from POST),
+// prioritize the newly saved draft.
 if ($current_record_id == 0) {
-    $curr_year = date('Y');
-    $curr_month = date('n');
-    $start_m = ($curr_month <= 6) ? 1 : 7;
-    $end_m = ($curr_month <= 6) ? 6 : 12;
-    
-    $check_sql = "SELECT id FROM records WHERE user_id = ? AND form_type = 'IDP' AND document_status IN ('Approved', 'Pending', 'In Progress', 'Submitted', 'For Review', 'For Completion Review') AND YEAR(date_submitted) = ? AND MONTH(date_submitted) BETWEEN ? AND ? LIMIT 1";
-    $check_stmt = $conn->prepare($check_sql);
-    $check_stmt->bind_param("iiii", $user_id, $curr_year, $start_m, $end_m);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
-    if ($check_result->num_rows > 0) {
-        $existing = $check_result->fetch_assoc();
-        $current_record_id = $existing['id'];
+    if ($has_active_idp_this_period) {
+        $current_record_id = $active_idp_id_this_period;
     }
-    $check_stmt->close();
 }
+
 
 $idp_entries = [];
 $current_period = '';
@@ -274,6 +287,16 @@ if (empty($idp_entries)) {
     $idp_entries[] = ['objective' => '', 'action_plan' => ''];
 }
 
+// Determine if the form section should be shown
+$show_form_section = false;
+if ($current_record_id > 0) {
+    // Always show form if an IDP is being loaded (for edit, update, or view)
+    $show_form_section = true;
+} elseif (!$has_active_idp_this_period) {
+    // Allow creating new IDP if no active one exists for the current semi-annual period
+    $show_form_section = true;
+}
+
 // Determine if we are in Phase 2 (Accomplishment Reporting)
 // This happens after the DH's initial acceptance, which sets the status to 'In Progress'.
 $is_phase_2 = (($record_status === 'In Progress') || ($record_status === 'For Completion Review'));
@@ -299,7 +322,7 @@ foreach ($offsets as $offset) {
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">Individual Development Plan</h1>
-        <?php if ($current_record_id > 0): ?>
+        <?php if ($current_record_id > 0 && $show_form_section): ?>
             <a href="print_record.php?id=<?php echo $current_record_id; ?>" target="_blank" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-print"></i> Print IDP
             </a>
@@ -316,19 +339,46 @@ foreach ($offsets as $offset) {
     <div class="card">
         <div class="card-header bg-white">
             <ul class="nav nav-tabs card-header-tabs">
+                <?php
+                // Logic for tab activation
+                $create_edit_tab_active = false;
+                $history_tab_active = true; // History is default active
+
+                // If explicitly loading an ID (edit/update) or creating a new one when allowed
+                // or if a form was just processed successfully, activate the create/edit tab
+                if ((isset($_GET['id']) && $show_form_section) || (isset($_GET['action']) && $_GET['action'] == 'create' && $show_form_section) ||
+                    ($message_type == 'success' && (strpos($message, 'draft updated') !== false || strpos($message, 'saved as draft') !== false || strpos($message, 'submitted successfully') !== false))) {
+                    $create_edit_tab_active = true;
+                    $history_tab_active = false;
+                }
+
+                // If no active tab determined above, and there's no history, but allowed to create, default to create/edit tab
+                if (!$create_edit_tab_active && empty($idp_history) && $show_form_section) {
+                     $create_edit_tab_active = true;
+                     $history_tab_active = false;
+                }
+                ?>
                 <li class="nav-item">
-                    <a class="nav-link <?php echo (!$idp_history || $current_record_id > 0) ? 'active' : ''; ?>" href="#edit-idp" data-bs-toggle="tab">
-                        <?php echo ($current_record_id > 0 ? ($is_phase_2 ? 'Update Progress' : 'Edit IDP') : 'Create IDP'); ?>
+                    <a class="nav-link <?php echo $create_edit_tab_active ? 'active' : ''; ?>" href="#edit-idp" data-bs-toggle="tab">
+                        <?php
+                        if ($current_record_id > 0) {
+                            echo $is_phase_2 ? 'Update Progress' : 'Edit IDP';
+                        } elseif ($show_form_section) { // Allows creation
+                            echo 'Create IDP';
+                        } else { // Has active IDP, but not editing it
+                            echo 'View Current IDP';
+                        }
+                        ?>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link <?php echo ($idp_history && $current_record_id == 0) ? 'active' : ''; ?>" href="#history" data-bs-toggle="tab">IDP History</a>
+                    <a class="nav-link <?php echo $history_tab_active ? 'active' : ''; ?>" href="#history" data-bs-toggle="tab">IDP History</a>
                 </li>
             </ul>
         </div>
         <div class="card-body">
             <div class="tab-content">
-                <div class="tab-pane fade <?php echo (!$idp_history || $current_record_id > 0) ? 'show active' : ''; ?>" id="edit-idp">
+                <div class="tab-pane fade <?php echo $create_edit_tab_active ? 'show active' : ''; ?>" id="edit-idp">
                     
                         <div class="card shadow mb-4">
                             <div class="card-header bg-light">
@@ -340,7 +390,7 @@ foreach ($offsets as $offset) {
                                     <div class="col-md-6"><p><strong>Department:</strong> <?php echo htmlspecialchars($department_name); ?></p></div>
                                 </div>
                                 <?php if($record_status): ?>
-                                    <p><strong>Status:</strong> <span class="badge bg-<?php echo ($record_status == 'Approved' ? 'success' : (($record_status == 'Pending' || $record_status == 'For Review' || $record_status == 'For Completion Review') ? 'warning' : 'secondary')); ?>"><?php echo $record_status; ?></span></p>
+                                    <p><strong>Status:</strong> <span class="badge bg-<?php echo ($record_status == 'Approved' ? 'success' : (($record_status == 'Pending' || $record_status == 'In Progress' || $record_status == 'For Review' || $record_status == 'For Completion Review' || $record_status == 'Submitted') ? 'info text-dark' : 'secondary')); ?>"><?php echo $record_status; ?></span></p>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -420,12 +470,11 @@ foreach ($offsets as $offset) {
                             <?php endif; ?>
                         </form>
                 </div>
-                <div class="tab-pane fade <?php echo ($idp_history) ? 'show active' : ''; ?>" id="history">
+                <div class="tab-pane fade <?php echo $history_tab_active ? 'show active' : ''; ?>" id="history">
                     <div class="table-responsive">
                         <table class="table table-hover">
                              <thead>
                                 <tr>
-                                    <?php if ($user_role != 'regular_employee'): ?><th>Employee</th><?php endif; ?>
                                     <th>Period</th>
                                     <th>Status</th>
                                     <th>Date Updated</th>
@@ -434,11 +483,11 @@ foreach ($offsets as $offset) {
                             </thead>
                             <tbody>
                                 <?php if (empty($idp_history)): ?>
-                                    <tr><td colspan="5" class="text-center">No IDP records found.</td></tr>
+                                    <tr><td colspan="4" class="text-center">No IDP records found.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($idp_history as $record): ?>
                                     <tr>
-                                        <?php if ($user_role != 'regular_employee'): ?><td><?php echo htmlspecialchars($record['employee_name']); ?></td><?php endif; ?>
+                                        <?php if ($user_role != 'regular_employee' && $user_role != 'department_head'): ?><td><?php echo htmlspecialchars($record['employee_name']); ?></td><?php endif; ?>
                                         <td><?php echo htmlspecialchars($record['period']); ?></td>
                                         <td>
                                             <?php 
@@ -447,18 +496,23 @@ foreach ($offsets as $offset) {
                                             if ($status === 'Pending' || $status === 'For Review') $badge_class = 'bg-warning text-dark';
                                             if ($status === 'Approved') $badge_class = 'bg-success';
                                             if ($status === 'Rejected') $badge_class = 'bg-danger';
+                                            if ($status === 'In Progress' || $status === 'For Completion Review' || $status === 'Submitted') $badge_class = 'bg-info text-white';
                                             ?>
                                             <span class="badge <?php echo $badge_class; ?>"><?php echo $status; ?></span>
                                         </td>
                                         <td><?php echo date('M d, Y', strtotime($record['date_submitted'] ?? $record['date_created'])); ?></td>
                                         <td>
                                             <a href="view_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i> View</a>
-                                            <?php if ($user_role == 'regular_employee' && $record['document_status'] == 'In Progress'): ?>
+                                            <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && ($record['document_status'] == 'In Progress' || $record['document_status'] == 'For Completion Review') && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can update progress of an Approved IDP that is now In Progress or For Completion Review ?>
                                                 <a href="idp.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-success me-1"><i class="bi bi-check2-circle"></i> Update Progress</a>
                                             <?php endif; ?>
-                                             <?php if ($user_role == 'regular_employee' && ($record['document_status'] == 'Draft' || $record['document_status'] == 'Rejected')): ?>
+                                             <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && ($record['document_status'] == 'Draft' || $record['document_status'] == 'Rejected') && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can edit drafts or rejected IDPs ?>
                                                 <a href="idp.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i> Edit</a>
                                             <?php endif; ?>
+                                            <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && $record['document_status'] == 'Draft'  && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can delete drafts ?>
+                                                <a href="delete_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this draft IDP?');"><i class="bi bi-trash"></i> Delete</a>
+                                            <?php endif; ?>
+                                            <a href="print_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-info ms-1"><i class="bi bi-printer"></i> Print</a>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -473,4 +527,9 @@ foreach ($offsets as $offset) {
 </div>
 
 <?php
-?>
+// Close database connection
+$conn->close();
+
+// Include footer
+include_once('includes/footer.php');
+?> 

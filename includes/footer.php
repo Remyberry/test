@@ -29,6 +29,15 @@ if (isset($_SESSION['user_id']) && !in_array($current_page, $public_pages)):
                 return new bootstrap.Popover(popoverTriggerEl);
             });
             
+            // Ensure dropdown toggle works
+            var dropdownToggle = document.getElementById('dropdownUser');
+            if (dropdownToggle) {
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            }
+            
             // Mobile sidebar toggle functionality if needed
             // This can be expanded for mobile responsiveness
             const toggleSidebarBtn = document.getElementById('toggleSidebar');
