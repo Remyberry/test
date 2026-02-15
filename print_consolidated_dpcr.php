@@ -140,7 +140,7 @@ function getRatingInterpretation($rating) {
         </div>
         <div id="print-container">
             <div class="report-header">
-                <img src="images/CCA.jpg" alt="City College of Angeles Logo" class="mb-2" onerror="this.onerror=null; this.src='https://placehold.co/80x80/cccccc/333333?text=Logo'">
+                <img src="images/CCA.jpg" alt="City College of Angeles Logo" class="mb-2" onerror="this.onerror=null; this.src='/images/CCA.jpg';">'">
                 <h4>City College of Angeles</h4>
                 <p class="report-title">Consolidated DPCR Report</p>
                 <p class="filter-info">

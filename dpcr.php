@@ -359,8 +359,9 @@ $computation_type = $dpcr_data['computation_type'] ?? 'Type1';
 
 // --- Fetch Sent DPCR History ---
 $sent_dpcr_history = [];
-$history_query = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE r.form_type = 'DPCR' ORDER BY r.date_created DESC";
+$history_query = "SELECT r.*, u.name as employee_name FROM records r JOIN users u ON r.user_id = u.id WHERE r.form_type = 'DPCR' AND r.user_id = ? ORDER BY r.date_created DESC";
 $history_stmt = $conn->prepare($history_query);
+$history_stmt->bind_param("i", $user_id);
 $history_stmt->execute();
 $history_result = $history_stmt->get_result();
 while ($row = $history_result->fetch_assoc()) {

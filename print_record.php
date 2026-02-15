@@ -726,10 +726,10 @@ $conn->close();
                         <th class="col-remarks" rowspan="2">REMARKS</th>
                     </tr>
                     <tr>
-                        <th class="col-q">Q1</th>
-                        <th class="col-q">Q2</th>
-                        <th class="col-q">T3</th>
-                        <th class="col-q">A4</th>
+                        <th class="col-q">Q<sup>1</sup></th>
+                        <th class="col-q">Q<sup>2</sup></th>
+                        <th class="col-q">T<sup>3</sup></th>
+                        <th class="col-q">A<sup>4</sup></th>
                     </tr>
                 </thead>
                 <tbody>

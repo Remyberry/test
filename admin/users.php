@@ -22,10 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = $_POST['email'];
         $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
         $role = $_POST['role'];
+        $position = $_POST['position'];
         $department_id = ($_POST['department_id'] !== '') ? $_POST['department_id'] : null;
         
-        $stmt = $conn->prepare("INSERT INTO users (name, email, password, role, department_id) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssi", $name, $email, $password, $role, $department_id);
+        $stmt = $conn->prepare("INSERT INTO users (name, email, password, role, position, department_id) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssssi", $name, $email, $password, $role, $position, $department_id);
         
         if ($stmt->execute()) {
             $success_message = "User added successfully!";
@@ -45,10 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = $_POST['name'];
         $email = $_POST['email'];
         $role = $_POST['role'];
+        $position = $_POST['position'];
         $department_id = ($_POST['department_id'] !== '') ? $_POST['department_id'] : null;
         
         // Get the current role and department for the user
-        $current_data_stmt = $conn->prepare("SELECT role, department_id FROM users WHERE id = ?");
+        $current_data_stmt = $conn->prepare("SELECT role, department_id, position FROM users WHERE id = ?");
         $current_data_stmt->bind_param("i", $user_id);
         $current_data_stmt->execute();
         $current_data_result = $current_data_stmt->get_result();
@@ -57,12 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_password']) && !empty($_POST['password'])) {
             // Update user with new password
             $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE users SET name = ?, email = ?, password = ?, role = ?, department_id = ? WHERE id = ?");
-            $stmt->bind_param("ssssii", $name, $email, $password, $role, $department_id, $user_id);
+            $stmt = $conn->prepare("UPDATE users SET name = ?, email = ?, password = ?, role = ?, position = ?, department_id = ? WHERE id = ?");
+            $stmt->bind_param("ssssssi", $name, $email, $password, $role, $position, $department_id, $user_id);
         } else {
             // Update user without changing password
-            $stmt = $conn->prepare("UPDATE users SET name = ?, email = ?, role = ?, department_id = ? WHERE id = ?");
-            $stmt->bind_param("sssii", $name, $email, $role, $department_id, $user_id);
+            $stmt = $conn->prepare("UPDATE users SET name = ?, email = ?, role = ?, position = ?, department_id = ? WHERE id = ?");
+            $stmt->bind_param("sssii", $name, $email, $role, $position, $department_id, $user_id);
         }
         
         if ($stmt->execute()) {
@@ -305,6 +307,7 @@ $users_result = $conn->query($users_query);
                                                     data-name="<?php echo htmlspecialchars($user['name']); ?>"
                                                     data-email="<?php echo htmlspecialchars($user['email']); ?>"
                                                     data-role="<?php echo $user['role']; ?>"
+                                                    data-position="<?php echo htmlspecialchars($user['position'] ?? ''); ?>"
                                                     data-department="<?php echo $user['department_id'] ?? ''; ?>">
                                                 <i class="bi bi-pencil"></i> Edit
                                             </button>
@@ -403,13 +406,13 @@ $users_result = $conn->query($users_query);
                         <div class="mb-3">
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" id="update_password" name="update_password">
-                                <label class="form-check-label" for="update_password">
+                                <label class="form-check-label" for="update_password" required>
                                     Update Password
                                 </label>
                             </div>
                             <div id="password_field_container" style="display: none;">
                                 <label for="edit_password" class="form-label">New Password</label>
-                                <input type="password" class="form-control" id="edit_password" name="password">
+                                <input type="password" class="form-control" id="edit_password" name="password" required>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -420,6 +423,10 @@ $users_result = $conn->query($users_query);
                                 <option value="department_head">Department Head</option>
                                 <option value="regular_employee">Regular Employee</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_position" class="form-label">Position</label>
+                            <input type="text" class="form-control" id="edit_position" name="position" required>
                         </div>
                         <div class="mb-3">
                             <label for="edit_department_id" class="form-label">Department</label>
@@ -475,6 +482,7 @@ $users_result = $conn->query($users_query);
                     document.getElementById('edit_name').value = this.dataset.name;
                     document.getElementById('edit_email').value = this.dataset.email;
                     document.getElementById('edit_role').value = this.dataset.role;
+                    document.getElementById('edit_position').value = this.dataset.position;
                     document.getElementById('edit_department_id').value = this.dataset.department;
                 });
             });
