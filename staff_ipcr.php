@@ -206,7 +206,7 @@ $periods_result = $stmt->get_result();
                         <h6 class="text-muted mb-2">Pending Review</h6>
                         <h2 class="mb-0"><?php echo $status_counts['For Review']; ?></h2>
                         <?php if ($status_counts['For Review'] > 0): ?>
-                        <span class="badge bg-danger badge-new">Needs Action</span>
+                        <span class="badge bg-warning text-dark badge-new">Needs Action</span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -224,7 +224,7 @@ $periods_result = $stmt->get_result();
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Staff IPCR Records</h5>
             <?php if ($status_counts['For Review'] > 0): ?>
-            <span class="badge bg-danger"><?php echo $status_counts['For Review']; ?> Pending Review</span>
+            <span class="badge bg-warning text-dark"><?php echo $status_counts['For Review']; ?> Pending Review</span>
             <?php endif; ?>
         </div>
         <div class="card-body">
@@ -310,6 +310,13 @@ $periods_result = $stmt->get_result();
                                                 $current_time = time();
                                                 $is_new = ($current_time - $submitted_time) < 86400; // 24 hours in seconds
                                                 break;
+                                            case 'For Review':
+                                                $status_badge = 'warning';
+                                                // Check if this is a recent submission (within the last 24 hours)
+                                                $submitted_time = strtotime($ipcr['date_submitted']);
+                                                $current_time = time();
+                                                $is_new = ($current_time - $submitted_time) < 86400; // 24 hours in seconds
+                                                break;
                                             case 'Rejected':
                                                 $status_badge = 'danger';
                                                 break;
@@ -331,7 +338,13 @@ $periods_result = $stmt->get_result();
                                                 <i class="bi bi-eye"></i> View
                                             </a>
                                             <?php if ($ipcr['document_status'] == 'Pending'): ?>
-                                                <a href="review_record.php?id=<?php echo $ipcr['id']; ?>" class="btn btn-sm <?php echo $is_new ? 'btn-success pulse-button' : 'btn-outline-success'; ?>">
+                                                <a href="edit_record.php?id=<?php echo $ipcr['id']; ?>" class="btn btn-sm <?php echo $is_new ? 'btn-success pulse-button' : 'btn-outline-success'; ?>">
+                                                    <i class="bi bi-check-circle <?php echo $is_new ? 'pulse-icon' : ''; ?>"></i> 
+                                                    <?php echo $is_new ? '<strong>Review Now</strong>' : 'Review'; ?>
+                                                </a>
+                                            <?php endif; ?>
+                                            <?php if ($ipcr['document_status'] == 'For Review'): ?>
+                                                <a href="edit_record.php?id=<?php echo $ipcr['id']; ?>" class="btn btn-sm <?php echo $is_new ? 'btn-success pulse-button' : 'btn-outline-success'; ?>">
                                                     <i class="bi bi-check-circle <?php echo $is_new ? 'pulse-icon' : ''; ?>"></i> 
                                                     <?php echo $is_new ? '<strong>Review Now</strong>' : 'Review'; ?>
                                                 </a>

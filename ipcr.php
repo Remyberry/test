@@ -51,8 +51,8 @@ if ($user_role == 'department_head') {
     }
 } 
 
-if ($user_role == 'regular_employee') {
-    // Employee: Get IPCRs sent by DH that need to be filled out
+if ($user_role == 'regular_employee' || $user_role == 'department_head') {
+    // Employee and DH: Get IPCRs sent by DH that need to be filled out
     $pending_query = "SELECT r.*, u.name as dh_name 
                       FROM records r 
                       JOIN users u ON r.created_by = u.id
