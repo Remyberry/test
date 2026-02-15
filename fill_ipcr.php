@@ -9,7 +9,7 @@ include_once('includes/form_workflow.php');
 
 
 // Check if user is logged in and has the correct role
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'regular_employee') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'], ['regular_employee', 'department_head'])) {
     header("Location: access_denied.php");
     exit();
 }

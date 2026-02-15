@@ -319,6 +319,14 @@ unset($_SESSION['error_message']);
                                         $status_badge = 'warning';
                                         $status_icon = 'bi-hourglass-split';
                                         break;
+                                    case 'For Review':
+                                        $status_badge = 'warning';
+                                        $status_icon = 'bi-file-earmark-arrow-down-fill';
+                                        break;
+                                    case 'Distributed':
+                                        $status_badge = 'info';
+                                        $status_icon = 'bi-file-earmark-arrow-up-fill';
+                                        break;
                                     case 'Rejected':
                                         $status_badge = 'danger';
                                         $status_icon = 'bi-x-circle-fill';

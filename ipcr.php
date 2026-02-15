@@ -41,7 +41,7 @@ $ipcr_history = [];
 
 if ($user_role == 'department_head') {
     // DH: Get all staff in their department to distribute forms to
-    $staff_query = "SELECT id, name FROM users WHERE department_id = ? AND role = 'regular_employee'";
+    $staff_query = "SELECT id, name FROM users WHERE department_id = ?";
     $staff_stmt = $conn->prepare($staff_query);
     $staff_stmt->bind_param("i", $user_department_id);
     $staff_stmt->execute();
@@ -87,18 +87,39 @@ while ($row = $history_result->fetch_assoc()) {
     $ipcr_history[] = $row;
 }
 
-// --- Tab Activation Logic for regular_employee ---
+// --- Tab Activation Logic ---
+$create_distribute_tab_active = false;
 $pending_tab_active = false;
 $history_tab_active = false;
 
-if ($user_role == 'regular_employee') {
-    // Default to pending forms tab if there are pending forms and no specific tab requested
-    if (count($pending_ipcr_for_employee) > 0 && !isset($_GET['tab'])) {
-        $pending_tab_active = true;
-    } elseif (isset($_GET['tab']) && $_GET['tab'] == 'pending') {
+// Determine default active tab
+if ($user_role == 'department_head') {
+    // If DH has pending IPCRs, make pending tab active, otherwise, create/distribute tab
+    if (count($pending_ipcr_for_employee) > 0) {
         $pending_tab_active = true;
     } else {
-        // Default to history tab if no pending forms or history tab is requested
+        $create_distribute_tab_active = true;
+    }
+} elseif ($user_role == 'regular_employee') {
+    // If employee has pending IPCRs, make pending tab active, otherwise, history tab
+    if (count($pending_ipcr_for_employee) > 0) {
+        $pending_tab_active = true;
+    } else {
+        $history_tab_active = true;
+    }
+}
+
+// Override default if a specific tab is requested via GET
+if (isset($_GET['tab'])) {
+    $create_distribute_tab_active = false;
+    $pending_tab_active = false;
+    $history_tab_active = false;
+
+    if ($_GET['tab'] == 'create_distribute') {
+        $create_distribute_tab_active = true;
+    } elseif ($_GET['tab'] == 'pending') {
+        $pending_tab_active = true;
+    } elseif ($_GET['tab'] == 'history') {
         $history_tab_active = true;
     }
 }
@@ -278,9 +299,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
             <ul class="nav nav-tabs card-header-tabs">
                 <?php if ($user_role == 'department_head'): ?>
                     <li class="nav-item">
-                        <a class="nav-link active" href="#new-form" data-bs-toggle="tab">Create & Distribute IPCR</a>
+                        <a class="nav-link <?php echo $create_distribute_tab_active ? 'active' : ''; ?>" href="#new-form" data-bs-toggle="tab">Create & Distribute IPCR</a>
                     </li>
-                <?php elseif ($user_role == 'regular_employee'): ?>
+                <?php endif; ?>
+                <?php if ($user_role == 'department_head' || $user_role == 'regular_employee'): ?>
                     <li class="nav-item">
                         <a class="nav-link <?php echo $pending_tab_active ? 'active' : ''; ?>" href="#pending-forms" data-bs-toggle="tab">Pending IPCRs
                             <?php if (count($pending_ipcr_for_employee) > 0): ?>
@@ -290,14 +312,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                     </li>
                 <?php endif; ?>
                 <li class="nav-item">
-                    <a class="nav-link <?php echo ($user_role == 'department_head') ? '' : ($history_tab_active ? 'active' : ''); ?>" href="#history" data-bs-toggle="tab">IPCR History</a>
+                    <a class="nav-link <?php echo $history_tab_active ? 'active' : ''; ?>" href="#history" data-bs-toggle="tab">IPCR History</a>
                 </li>
             </ul>
         </div>
         <div class="card-body">
             <div class="tab-content">
                 <?php if ($user_role == 'department_head'): ?>
-                <div class="tab-pane fade show active" id="new-form">
+                <div class="tab-pane fade <?php echo $create_distribute_tab_active ? 'show active' : ''; ?>" id="new-form">
                     <form action="ipcr.php" method="POST" id="ipcr-form">
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -402,7 +424,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                 </div>
                 <?php endif; ?>
 
-                <?php if ($user_role == 'regular_employee'): ?>
+                <?php if ($user_role == 'department_head' || $user_role == 'regular_employee'): ?>
                 <div class="tab-pane fade <?php echo $pending_tab_active ? 'show active' : ''; ?>" id="pending-forms">
                     <h5 class="mb-3">IPCR Forms to Fill Out</h5>
                     <div class="list-group">
@@ -423,7 +445,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                 </div>
                 <?php endif; ?>
 
-                <div class="tab-pane fade <?php echo ($user_role == 'department_head') ? '' : ($history_tab_active ? 'show active' : ''); ?>" id="history">
+                <div class="tab-pane fade <?php echo $history_tab_active ? 'show active' : ''; ?>" id="history">
                     <div class="table-responsive">
                         <table class="table table-hover">
                              <thead>
@@ -455,15 +477,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                                             <a href="view_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i> View</a>
                                             <?php
                                             $can_edit = false;
-                                            if ($user_role == 'department_head' && in_array($record['document_status'], ['Distributed', 'For Review', 'Rejected'])) {
-                                                $can_edit = true;
-                                            } elseif ($user_role == 'regular_employee' && $record['document_status'] == 'Rejected' && $record['user_id'] == $user_id) {
+
+                                            // Check if user is a Dept Head AND the record does NOT belong to them
+                                            if ($user_role == 'department_head' && $record['user_id'] != $user_id) {
+                                                if (in_array($record['document_status'], ['Distributed', 'For Review', 'Rejected'])) {
+                                                    $can_edit = true;
+                                                }
+                                            } 
+                                            // Regular employees can only edit if Rejected and it IS their own record
+                                            elseif ($user_role == 'regular_employee' && $record['document_status'] == 'Rejected' && $record['user_id'] == $user_id) {
                                                 $can_edit = true;
                                             }
                                             ?>
+
                                             <?php if ($can_edit): ?>
-                                            <a href="edit_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i> Edit</a>
+                                                <a href="edit_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i> Edit</a>
                                             <?php endif; ?>
+
                                             <a href="print_record.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-info"><i class="bi bi-printer"></i> Print</a>
                                         </td>
                                     </tr>

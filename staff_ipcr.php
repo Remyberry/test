@@ -323,6 +323,9 @@ $periods_result = $stmt->get_result();
                                             case 'Draft':
                                                 $status_badge = 'secondary';
                                                 break;
+                                            case 'Distributed':
+                                                $status_badge = 'info';
+                                                break;
                                         }
                                         ?>
                                         <span class="badge bg-<?php echo $status_badge; ?>">

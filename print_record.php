@@ -661,10 +661,7 @@ $conn->close();
             <div style="text-align: center; margin-bottom: 10px;">
                 <h3 class="dpcr-title">DEPARTMENT PERFORMANCE COMMITMENT AND REVIEW (DPCR)</h3>
                 <div class="dpcr-period">
-                    I<tr>
-                    <td class="label"><?php echo htmlspecialchars($record['employee_position']); ?></td>
-                    <td style="font-weight: bold;"><?php echo htmlspecialchars($record['employee_name']); ?></td>
-                </tr>commit to deliver and agree to be rated on the attainment of the following targets in accordance with the indicated measures for the period
+                    I, <strong><?php echo htmlspecialchars($record['employee_name']); ?></strong>, <strong><?php echo htmlspecialchars($record['employee_position']); ?></strong>, commit to deliver and agree to be rated on the attainment of the following targets in accordance with the indicated measures for the period
                     <span style="border-bottom: 1px solid #000; padding: 0 50px;">
                         <?php 
                             // Attempt to format the period from the database
