@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_action'])) {
     }
     
     // Update record status
-    $new_status = ($_POST['review_action'] === 'approve') ? 'Approved' : 'Rejected';
+    $new_status = ($_POST['review_action'] === 'approve') ? 'Approved' : 'For Revision';
     $comments = trim($_POST['comments'] ?? '');
     
     $update_query = "UPDATE records SET document_status = ?, reviewed_by = ?, date_reviewed = NOW(), comments = ? WHERE id = ?";
@@ -105,26 +105,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_action'])) {
 $entries = [];
 
 if ($record['form_type'] === 'DPCR') {
-    $entries_query = "SELECT * FROM dpcr_entries WHERE record_id = ? ORDER BY category, id";
-    $stmt = $conn->prepare($entries_query);
-    $stmt->bind_param("i", $record_id);
-    $stmt->execute();
-    $entries_result = $stmt->get_result();
-    
-    $strategic_entries = [];
-    $core_entries = [];
-    
-    while ($entry = $entries_result->fetch_assoc()) {
-        if ($entry['category'] === 'Strategic') {
-            $strategic_entries[] = $entry;
-        } else if ($entry['category'] === 'Core') {
-            $core_entries[] = $entry;
-        }
+    $content = json_decode($record['content'], true);
+    $strategic_functions = [];
+    $core_functions = [];
+    $support_functions = [];
+
+    if ($content !== null && is_array($content)) {
+        $flatten_data = function($entries) {
+            if (empty($entries)) return [];
+            if (isset($entries[0]['indicators'])) {
+                $flat = [];
+                foreach ($entries as $block) {
+                    $mfo = $block['major_output'] ?? '';
+                    foreach ($block['indicators'] as $ind) {
+                        $ind['major_output'] = $mfo;
+                        $flat[] = $ind;
+                    }
+                }
+                return $flat;
+            }
+            return $entries;
+        };
+        
+        $strategic_functions = $flatten_data($content['strategic_functions'] ?? []);
+        $core_functions = $flatten_data($content['core_functions'] ?? []);
+        $support_functions = $flatten_data($content['support_functions'] ?? []);
+        $computation_type = $content['computation_type'] ?? 'Type1';
     }
     
     $entries = [
-        'strategic' => $strategic_entries,
-        'core' => $core_entries
+        'strategic' => $strategic_functions,
+        'core' => $core_functions,
+        'support' => $support_functions,
+        'computation_type' => $computation_type ?? 'Type1'
     ];
 } else if ($record['form_type'] === 'IPCR') {
     // First check if there are entries in the ipcr_entries table
@@ -365,7 +378,7 @@ unset($_SESSION['error_message']);
                             case 'Pending':
                                 $status_class = "warning";
                                 break;
-                            case 'Rejected':
+                            case 'For Revision':
                                 $status_class = "danger";
                                 break;
                         }
@@ -418,7 +431,7 @@ unset($_SESSION['error_message']);
                     case 'Approved':
                         $status_badge_class = 'success';
                         break;
-                    case 'Rejected':
+                    case 'For Revision':
                         $status_badge_class = 'danger';
                         break;
                 }
@@ -431,7 +444,7 @@ unset($_SESSION['error_message']);
                     <i class="bi bi-hourglass-split me-2"></i>
                     <span>This form is currently pending review by your department head.</span>
                 </div>
-            <?php elseif($record['document_status'] === 'Approved' || $record['document_status'] === 'Rejected'): ?>
+            <?php elseif($record['document_status'] === 'Approved' || $record['document_status'] === 'For Revision'): ?>
                 <div class="d-flex mb-3">
                     <div class="me-3">
                         <i class="bi bi-person-circle fs-1 text-muted"></i>
@@ -485,7 +498,7 @@ unset($_SESSION['error_message']);
                 <?php endif; ?>
             <?php endif; ?>
             
-            <?php if($record['document_status'] === 'Rejected'): ?>
+            <?php if($record['document_status'] === 'For Revision'): ?>
                 <div class="alert alert-info mt-3">
                     <i class="bi bi-info-circle me-2"></i>
                     <span>Please review the feedback above and consider submitting a revised version.</span>
@@ -496,82 +509,69 @@ unset($_SESSION['error_message']);
     <?php endif; ?>
             
     <!-- DPCR Form Content -->
-            <?php if ($record['form_type'] === 'DPCR'): ?>
+    <?php if ($record['form_type'] === 'DPCR'): ?>
     <div class="card mb-4">
         <div class="card-header bg-white">
             <h5 class="mb-0">Department Performance Commitment and Review (DPCR)</h5>
         </div>
         <div class="card-body">
-            <!-- Strategic Functions (45%) -->
-            <div class="mb-4">
-                <h5 class="mb-3">Strategic Functions (45%)</h5>
-                
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="30%">Major Final Output</th>
-                                <th width="30%">Success Indicators</th>
-                                <th width="15%">Budget</th>
-                                <th width="25%">Accountable Units</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($entries['strategic'])): ?>
-                            <tr>
-                                <td colspan="4" class="text-center">No strategic outputs defined</td>
-                            </tr>
-                            <?php else: ?>
-                                <?php foreach ($entries['strategic'] as $entry): ?>
-                                <tr>
+            <?php
+            $render_dpcr_section = function($title, $entries, $weight) {
+                if (empty($entries)) return;
+                ?>
+                <div class="mb-4">
+                    <h5 class="mb-3 text-primary"><?php echo $title; ?> <?php echo $weight; ?></h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="table-light">
+                                <tr class="text-center align-middle">
+                                    <th width="15%">Major Final Output</th>
+                                    <th width="15%">Success Indicators</th>
+                                    <th width="10%">Budget</th>
+                                    <th width="10%">Accountable</th>
+                                    <th width="15%">Actual Accomplishments</th>
+                                    <th width="5%">Q</th>
+                                    <th width="5%">E</th>
+                                    <th width="5%">T</th>
+                                    <th width="5%">A</th>
+                                    <th width="10%">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($entries as $entry): ?>
+                                <tr class="align-middle">
                                     <td><?php echo nl2br(htmlspecialchars($entry['major_output'])); ?></td>
                                     <td><?php echo nl2br(htmlspecialchars($entry['success_indicators'])); ?></td>
-                                    <td><?php echo htmlspecialchars($entry['budget'] ? number_format($entry['budget'], 2) : 'N/A'); ?></td>
+                                    <td class="text-end"><?php echo htmlspecialchars(isset($entry['budget']) && is_numeric($entry['budget']) ? number_format($entry['budget'], 2) : 'N/A'); ?></td>
                                     <td><?php echo htmlspecialchars($entry['accountable']); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars($entry['actual_accomplishments'] ?? '')); ?></td>
+                                    <td class="text-center fw-bold"><?php echo htmlspecialchars($entry['q_rating'] ?? '-'); ?></td>
+                                    <td class="text-center fw-bold"><?php echo htmlspecialchars($entry['e_rating'] ?? '-'); ?></td>
+                                    <td class="text-center fw-bold"><?php echo htmlspecialchars($entry['t_rating'] ?? '-'); ?></td>
+                                    <td class="text-center bg-light fw-bold"><?php echo htmlspecialchars($entry['a_rating'] ?? '-'); ?></td>
+                                    <td><?php echo nl2br(htmlspecialchars($entry['remarks'] ?? '')); ?></td>
                                 </tr>
                                 <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Core Functions (55%) -->
-            <div class="mb-4">
-                <h5 class="mb-3">Core Functions (55%)</h5>
-                
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="30%">Major Final Output</th>
-                                <th width="30%">Success Indicators</th>
-                                <th width="15%">Budget</th>
-                                <th width="25%">Accountable Units</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($entries['core'])): ?>
-                            <tr>
-                                <td colspan="4" class="text-center">No core outputs defined</td>
-                            </tr>
-                            <?php else: ?>
-                                <?php foreach ($entries['core'] as $entry): ?>
-                                <tr>
-                                    <td><?php echo nl2br(htmlspecialchars($entry['major_output'])); ?></td>
-                                    <td><?php echo nl2br(htmlspecialchars($entry['success_indicators'])); ?></td>
-                                    <td><?php echo htmlspecialchars($entry['budget'] ? number_format($entry['budget'], 2) : 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($entry['accountable']); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                <?php
+            };
+
+            $computation_type = $entries['computation_type'] ?? 'Type1';
+            $strategic_weight = ($computation_type === 'Type2') ? '(45%)' : '(45%)';
+            $core_weight = ($computation_type === 'Type2') ? '(45%)' : '(55%)';
+
+            $render_dpcr_section('I. Strategic Functions', $entries['strategic'], $strategic_weight);
+            $render_dpcr_section('II. Core Functions', $entries['core'], $core_weight);
+            if ($computation_type === 'Type2') {
+                $render_dpcr_section('III. Support Functions', $entries['support'], '(10%)');
+            }
+            ?>
         </div>
     </div>
-                <?php endif; ?>
+    <?php endif; ?>
                 
     <!-- IPCR Form Content -->
     <?php if ($record['form_type'] === 'IPCR'): ?>

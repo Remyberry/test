@@ -31,7 +31,7 @@ $query = "SELECT r.*, u_dh.name as dh_name
           FROM records r 
           JOIN users u_dh ON r.created_by = u_dh.id
           WHERE r.id = ? AND r.user_id = ? AND r.form_type = 'IPCR' 
-          AND (r.document_status = 'Distributed' OR r.document_status = 'Rejected')";
+          AND (r.document_status = 'Distributed' OR r.document_status = 'For Revision')";
 
 $stmt = $conn->prepare($query);
 $stmt->bind_param("ii", $record_id, $user_id);
@@ -74,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_ipcr'])) {
         $update_stmt->bind_param("si", $new_content_json, $record_id);
 
         if ($update_stmt->execute()) {
-            $_SESSION['success_message'] = "Your IPCR has been successfully submitted for review.";
+            $_SESSION['success_message'] = "Your IPCR has been successfully submitted For Review.";
             header("Location: records.php");
             exit();
         } else {
@@ -110,7 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_ipcr'])) {
                     </div>
                      <div class="col-md-4 text-end">
                         <strong>Status:</strong>
-                        <span class="badge <?php echo $record['document_status'] == 'Rejected' ? 'bg-danger' : 'bg-info text-dark'; ?>">
+                        <span class="badge <?php echo $record['document_status'] == 'For Revision' ? 'bg-danger' : 'bg-info text-dark'; ?>">
                             <?php echo htmlspecialchars($record['document_status']); ?>
                         </span>
                     </div>
@@ -181,7 +181,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_ipcr'])) {
 
                  <div class="d-flex justify-content-end mt-4">
                     <button type="submit" name="submit_ipcr" class="btn btn-primary">
-                        <i class="bi bi-check-circle me-1"></i> Submit for Review
+                        <i class="bi bi-check-circle me-1"></i> Submit For Review
                     </button>
                 </div>
             </div>

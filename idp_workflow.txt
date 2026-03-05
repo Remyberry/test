@@ -42,7 +42,7 @@ If the page is accessed via a POST request (i.e., a form has been submitted):
             *   $record_id is updated with the new insert_id.
             *   Sets $message and $message_type for success/error.
 
-    *   submit_idp (Submit for Review - Initial Submission):
+    *   submit_idp (Submit For Review - Initial Submission):
         *   Fetches the name and email of the department_head for the user's department to use in the success message.
         *   Uses submitForm function (from form_workflow.php): If submitForm exists, it's called with $conn, $user_id, 'IDP', $period, $content_json.
             *   If submitForm is successful, it sets $message (including the department head's name) and $message_type to "success".
@@ -102,26 +102,26 @@ IV. HTML Rendering and User Interface
         *   Main Form:
             *   Hidden input for record_id.
             *   Period Covered:
-                *   If $current_record_id > 0 and record_status is not 'Draft' or 'Rejected', the period is readonly.
+                *   If $current_record_id > 0 and record_status is not 'Draft' or 'For Revision', the period is readonly.
                 *   Otherwise, a <select> dropdown (period_options) is shown for selecting the period.
             *   Phase 2 Alert: If $is_phase_2 is true, an informational alert is displayed indicating the accomplishment phase. An is_phase_2_update hidden input is set.
             *   Development Goals Table:
                 *   Table headers change based on $is_phase_2:
                     *   If $is_phase_2 is true, additional columns for "Status", "Date Accomplished", and "Results of Plan" are shown.
                 *   Each $idp_entries item is rendered as a row.
-                *   main_objectives and plan_of_action fields are readonly if $is_phase_2 or ($record_status is not 'Draft' and not 'Rejected').
+                *   main_objectives and plan_of_action fields are readonly if $is_phase_2 or ($record_status is not 'Draft' and not 'For Revision').
                 *   status, date_accomplished, and results fields are only visible and editable when $is_phase_2 is true.
             *   Action Buttons:
                 *   If $is_phase_2 is true: "Save Progress" (save_draft) and "Submit for Final Review" (submit_completion_review) buttons are displayed.
-                *   If $current_record_id > 0 and record_status is not 'Draft' and not 'Rejected' (and not phase 2): An info alert stating the IDP has been submitted.
-                *   Otherwise (initial creation or editing draft/rejected): "Save as Draft" (save_draft) and "Submit for Review" (submit_idp) buttons are displayed.
+                *   If $current_record_id > 0 and record_status is not 'Draft' and not 'For Revision' (and not phase 2): An info alert stating the IDP has been submitted.
+                *   Otherwise (initial creation or editing draft/For Revision): "Save as Draft" (save_draft) and "Submit For Review" (submit_idp) buttons are displayed.
     *   "IDP History" Tab (#history):
         *   Displays a table of $idp_history records.
         *   Columns include: Employee (if not regular_employee), Period, Status (with color-coded badges), Date Updated, Actions.
         *   Actions Column:
             *   "View" button (view_record.php).
             *   If regular_employee and document_status is 'Approved': "Update Progress" button (idp.php?id=...).
-            *   If regular_employee and document_status is 'Draft' or 'Rejected': "Edit" button (idp.php?id=...).
+            *   If regular_employee and document_status is 'Draft' or 'For Revision': "Edit" button (idp.php?id=...).
 
 V. End of Workflow:
 

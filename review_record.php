@@ -65,9 +65,9 @@ if (!$can_review) {
     exit();
 }
 
-// Check if record is pending for review
+// Check if record is pending For Review
 if ($record['document_status'] !== 'Pending') {
-    $_SESSION['error_message'] = "This record is not pending for review";
+    $_SESSION['error_message'] = "This record is not pending For Review";
     header("Location: view_record.php?id=" . $record_id);
     exit();
 }
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $feedback = trim($_POST['feedback'] ?? ''); // Trim to correctly check for empty feedback
         $c_remarks = $_POST['remarks'] ?? '';
 
-        // If "Approved" is clicked but feedback is given, treat as "Rejected" to allow user edits
+        // If "Approved" is clicked but feedback is given, treat as "For Revision" to allow user edits
         if ($review_status === 'Approved' && !empty($feedback)) {
             // This is the "Approve with comments" case, so we use the reject workflow to send it back.
             $result = rejectForm($conn, $record_id, $user_id, $feedback, $c_remarks);
@@ -280,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Use the approveForm function from form_workflow.php
             $result = approveForm($conn, $record_id, $user_id, $content, $feedback, $c_remarks);
         
-        } else { // Status was 'Rejected'
+        } else { // Status was 'For Revision'
             // Use the rejectForm function from form_workflow.php
             $result = rejectForm($conn, $record_id, $user_id, $feedback, $c_remarks);
         }
@@ -776,7 +776,7 @@ if ($record['form_type'] === 'IDP') {
                                     </label>
                                 </div>
                                 <div class="form-check form-check-inline flex-grow-1">
-                                    <input class="form-check-input" type="radio" name="status" id="statusReject" value="Rejected" required>
+                                    <input class="form-check-input" type="radio" name="status" id="statusReject" value="For Revision" required>
                                     <label class="form-check-label btn btn-outline-danger w-100 mb-0 d-flex align-items-center justify-content-center" for="statusReject">
                                         <i class="bi bi-x-circle-fill me-2"></i> Reject
                                     </label>

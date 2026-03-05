@@ -188,7 +188,7 @@ function routeFormToDepartmentHead($conn, $record_id, $user_id) {
     // Return success with department head info
     return [
         'success' => true,
-        'message' => 'Form successfully routed to ' . $dept_info['head_name'] . ' for review',
+        'message' => 'Form successfully routed to ' . $dept_info['head_name'] . ' For Review',
         'head_id' => $dept_info['head_id'],
         'head_name' => $dept_info['head_name'],
         'head_email' => $dept_info['head_email']
@@ -219,7 +219,7 @@ function submitForm($conn, $user_id, $form_type, $period, $content) {
                     FROM records 
                     WHERE user_id = ? 
                       AND form_type = ? 
-                      AND document_status NOT IN ('Draft', 'Rejected')
+                      AND document_status NOT IN ('Draft', 'For Revision')
                       AND YEAR(date_submitted) = ?
                       AND MONTH(date_submitted) BETWEEN ? AND ?";
                       
@@ -410,7 +410,7 @@ function rejectForm($conn, $record_id, $reviewer_id, $feedback, $remarks = '') {
         
         // Update record
         $update_query = "UPDATE records SET 
-                        document_status = 'Rejected', 
+                        document_status = 'For Revision', 
                         reviewed_by = ?, 
                         date_reviewed = NOW(),
                         feedback = ?,
@@ -425,7 +425,7 @@ function rejectForm($conn, $record_id, $reviewer_id, $feedback, $remarks = '') {
         $notification_query = "INSERT INTO notifications (user_id, message, link, is_read) 
                               VALUES (?, ?, ?, 0)";
         
-        $message = "Your " . $record['form_type'] . " for " . $record['period'] . " has been REJECTED";
+        $message = "Your " . $record['form_type'] . " for " . $record['period'] . " has been For Revision";
         $link = "view_record.php?id=" . $record_id;
         
         $stmt = $conn->prepare($notification_query);
@@ -437,7 +437,7 @@ function rejectForm($conn, $record_id, $reviewer_id, $feedback, $remarks = '') {
         
         return [
             'success' => true,
-            'message' => $record['form_type'] . ' has been rejected'
+            'message' => $record['form_type'] . ' has been For Revision'
         ];
         
     } catch (Exception $e) {

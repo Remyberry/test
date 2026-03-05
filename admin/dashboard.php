@@ -247,7 +247,7 @@ while ($row = $result_recent_records->fetch_assoc()) {
                                     </thead>
                                     <tbody>
                                         <?php 
-                                        $statuses = ['Draft', 'Pending', 'Approved', 'Rejected'];
+                                        $statuses = ['Draft', 'Pending', 'Approved', 'For Revision'];
                                         foreach ($statuses as $status): 
                                             $count = isset($records_by_status[$status]) ? $records_by_status[$status] : 0;
                                             $percentage = $total_records > 0 ? round(($count / $total_records) * 100, 1) : 0;
@@ -257,7 +257,7 @@ while ($row = $result_recent_records->fetch_assoc()) {
                                                 case 'Draft': $bar_class = 'bg-secondary'; break;
                                                 case 'Pending': $bar_class = 'bg-warning'; break;
                                                 case 'Approved': $bar_class = 'bg-success'; break;
-                                                case 'Rejected': $bar_class = 'bg-danger'; break;
+                                                case 'For Revision': $bar_class = 'bg-danger'; break;
                                             }
                                         ?>
                                         <tr>
@@ -374,7 +374,7 @@ while ($row = $result_recent_records->fetch_assoc()) {
                                                         case 'Draft': $status_badge = 'secondary'; break;
                                                         case 'Approved': $status_badge = 'success'; break;
                                                         case 'Pending': $status_badge = 'warning'; break;
-                                                        case 'Rejected': $status_badge = 'danger'; break;
+                                                        case 'For Revision': $status_badge = 'danger'; break;
                                                     }
                                                     ?>
                                                     <span class="badge bg-<?php echo $status_badge; ?>">

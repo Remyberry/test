@@ -51,7 +51,7 @@ $stmt = $conn->prepare($update_query);
 $stmt->bind_param("i", $record_id);
 
 if ($stmt->execute()) {
-    $_SESSION['success_message'] = "Draft has been successfully submitted for review.";
+    $_SESSION['success_message'] = "Draft has been successfully submitted For Review.";
     
     // Send email notification to department head if this is an IPCR
     if ($record['form_type'] == 'IPCR') {

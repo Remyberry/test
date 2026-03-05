@@ -72,60 +72,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_dpcr'])) {
         exit();
     }
 
-    // --- START: NEW NESTED VALIDATION ---
-    function validateDPCREntries_Nested($category, $post_data, &$error_message) {
+    // --- START: FLAT VALIDATION ---
+    function validateDPCREntries_Flat($category, $post_data, &$error_message) {
         $cat_lower = strtolower($category);
         if (!isset($post_data[$cat_lower]) || !is_array($post_data[$cat_lower])) {
-            // Not an error if the category is not required (e.g., optional Support)
             return true;
         }
 
-        $has_at_least_one_complete_mfo = false;
-
-        foreach ($post_data[$cat_lower] as $mfo_index => $mfo_data) {
-            $major_output = trim($mfo_data['major_output'] ?? '');
-            $indicators = $mfo_data['indicators'] ?? [];
-
-            // Silently skip MFO blocks that are completely empty
-            if (empty($major_output) && empty($indicators)) {
+        $has_at_least_one_complete_row = false;
+        foreach ($post_data[$cat_lower] as $index => $row_data) {
+            $major_output = trim($row_data['major_output'] ?? '');
+            $indicator_text = trim($row_data['success_indicators'] ?? '');
+            $accountable_text = trim($row_data['accountable'] ?? '');
+            
+            // Skip empty rows
+            if (empty($major_output) && empty($indicator_text) && empty($accountable_text)) {
                 continue;
             }
 
-            if (empty($major_output)) {
-                $error_message = "In $category Functions, one of the Major Final Output blocks is missing its title text.";
-                return false;
-            }
-
-            if (empty($indicators)) {
-                $error_message = "In $category Functions, the MFO titled '" . htmlspecialchars($major_output) . "' must have at least one Success Indicator.";
+            if (empty($major_output) || empty($indicator_text) || empty($accountable_text)) {
+                $error_message = "In $category Functions, row #" . ($index + 1) . " is incomplete. Please fill 'Major Final Output', 'Success Indicator', and 'Accountable'.";
                 return false;
             }
             
-            $has_at_least_one_complete_indicator = false;
-            foreach ($indicators as $ind_index => $ind_data) {
-                $indicator_text = trim($ind_data['success_indicators'] ?? '');
-                $accountable_text = trim($ind_data['accountable'] ?? '');
-                
-                // If any part of an indicator is filled, its core parts must be filled.
-                if (!empty($indicator_text) || !empty($accountable_text) || !empty($ind_data['budget'])) {
-                     if (empty($indicator_text) || empty($accountable_text)) {
-                        $error_message = "In $category Functions, under MFO '" . htmlspecialchars($major_output) . "', indicator row #" . ($ind_index + 1) . " is incomplete. Please fill both 'Success Indicator' and 'Accountable' or clear the row.";
-                        return false;
-                     }
-                     $has_at_least_one_complete_indicator = true;
-                }
-            }
-
-            if (!$has_at_least_one_complete_indicator) {
-                 $error_message = "In $category Functions, the MFO titled '" . htmlspecialchars($major_output) . "' must have at least one complete Success Indicator row. A row is considered complete if 'Success Indicator' and 'Accountable' are filled.";
-                 return false;
-            }
-            
-            $has_at_least_one_complete_mfo = true;
+            $has_at_least_one_complete_row = true;
         }
 
-        if (!$has_at_least_one_complete_mfo) {
-            $error_message = "You must have at least one complete entry for $category Functions. An entry requires a Major Final Output and at least one complete indicator.";
+        if (!$has_at_least_one_complete_row) {
+            $error_message = "You must have at least one complete entry for $category Functions.";
             return false;
         }
 
@@ -140,17 +114,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_dpcr'])) {
         $redirect_url = 'dpcr.php?action=edit&id=' . intval($_GET['id']);
     }
 
-    if (!validateDPCREntries_Nested('Strategic', $_POST, $validation_error) || !validateDPCREntries_Nested('Core', $_POST, $validation_error)) {
+    if (!validateDPCREntries_Flat('Strategic', $_POST, $validation_error) || !validateDPCREntries_Flat('Core', $_POST, $validation_error)) {
         $_SESSION['error_message'] = $validation_error;
         header("Location: " . $redirect_url);
         exit();
     }
-    if ($computation_type_val === 'Type2' && !validateDPCREntries_Nested('Support', $_POST, $validation_error)) {
+    if ($computation_type_val === 'Type2' && !validateDPCREntries_Flat('Support', $_POST, $validation_error)) {
         $_SESSION['error_message'] = $validation_error;
         header("Location: " . $redirect_url);
         exit();
     }
-    // --- END: NEW NESTED VALIDATION ---
+    // --- END: FLAT VALIDATION ---
     
     $period = $_POST['period'] ?? '';
     $status = $_POST['document_status'] ?? 'Draft';
@@ -162,60 +136,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_dpcr'])) {
         $date_submitted = date('Y-m-d H:i:s');
     }
 
-    // --- START: NEW NESTED DATA COLLECTION ---
-    $collectDpcrEntries_Nested = function($category, $post_data) {
+    // --- START: FLAT DATA COLLECTION ---
+    $collectDpcrEntries_Flat = function($category, $post_data) {
         $cat_lower = strtolower($category);
         if (!isset($post_data[$cat_lower]) || !is_array($post_data[$cat_lower])) {
             return [];
         }
 
-        $mfo_entries = [];
-        foreach ($post_data[$cat_lower] as $mfo_data) {
-            $major_output = trim($mfo_data['major_output'] ?? '');
-            if (empty($major_output)) {
-                continue; // Skip MFO if the output text is empty
-            }
-
-            $indicator_entries = [];
-            if (isset($mfo_data['indicators']) && is_array($mfo_data['indicators'])) {
-                foreach ($mfo_data['indicators'] as $ind_data) {
-                    $indicator_text = trim($ind_data['success_indicators'] ?? '');
-                    if(empty($indicator_text)) {
-                        continue; // Skip indicator if its text is empty
-                    }
-
-                    $q_rating = !empty($ind_data['q_rating']) ? floatval($ind_data['q_rating']) : null;
-                    $e_rating = !empty($ind_data['e_rating']) ? floatval($ind_data['e_rating']) : null;
-                    $t_rating = !empty($ind_data['t_rating']) ? floatval($ind_data['t_rating']) : null;
-                    $a_rating = ($q_rating !== null && $e_rating !== null && $t_rating !== null) ? round(($q_rating + $e_rating + $t_rating) / 3, 2) : null;
-                    
-                    $indicator_entries[] = [
-                        'success_indicators' => $indicator_text,
-                        'budget' => !empty($ind_data['budget']) ? floatval($ind_data['budget']) : null,
-                        'accountable' => trim($ind_data['accountable'] ?? ''),
-                        'actual_accomplishments' => trim($ind_data['actual_accomplishments'] ?? ''),
-                        'q_rating' => $q_rating,
-                        'e_rating' => $e_rating,
-                        't_rating' => $t_rating,
-                        'a_rating' => $a_rating,
-                        'remarks' => trim($ind_data['remarks'] ?? '')
-                    ];
-                }
-            }
+        $entries = [];
+        foreach ($post_data[$cat_lower] as $row_data) {
+            $major_output = trim($row_data['major_output'] ?? '');
+            $indicator_text = trim($row_data['success_indicators'] ?? '');
             
-            if (!empty($indicator_entries)) {
-                $mfo_entries[] = [
-                    'major_output' => $major_output,
-                    'indicators' => $indicator_entries
-                ];
+            if (empty($major_output) && empty($indicator_text)) {
+                continue;
             }
+
+            $q_rating = !empty($row_data['q_rating']) ? floatval($row_data['q_rating']) : null;
+            $e_rating = !empty($row_data['e_rating']) ? floatval($row_data['e_rating']) : null;
+            $t_rating = !empty($row_data['t_rating']) ? floatval($row_data['t_rating']) : null;
+            $a_rating = ($q_rating !== null && $e_rating !== null && $t_rating !== null) ? round(($q_rating + $e_rating + $t_rating) / 3, 2) : null;
+            
+            $entries[] = [
+                'major_output' => $major_output,
+                'success_indicators' => $indicator_text,
+                'budget' => !empty($row_data['budget']) ? floatval($row_data['budget']) : null,
+                'accountable' => trim($row_data['accountable'] ?? ''),
+                'actual_accomplishments' => trim($row_data['actual_accomplishments'] ?? ''),
+                'q_rating' => $q_rating,
+                'e_rating' => $e_rating,
+                't_rating' => $t_rating,
+                'a_rating' => $a_rating,
+                'remarks' => trim($row_data['remarks'] ?? '')
+            ];
         }
-        return $mfo_entries;
+        return $entries;
     };
 
-    $strategic_functions = $collectDpcrEntries_Nested('strategic', $_POST);
-    $core_functions = $collectDpcrEntries_Nested('core', $_POST);
-    $support_functions = ($computation_type === 'Type2') ? $collectDpcrEntries_Nested('support', $_POST) : [];
+    $strategic_functions = $collectDpcrEntries_Flat('strategic', $_POST);
+    $core_functions = $collectDpcrEntries_Flat('core', $_POST);
+    $support_functions = ($computation_type === 'Type2') ? $collectDpcrEntries_Flat('support', $_POST) : [];
 
     $dpcr_content_array = [
         'computation_type' => $computation_type,
@@ -224,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_dpcr'])) {
         'support_functions' => $support_functions,
     ];
     $content_json = json_encode($dpcr_content_array, JSON_UNESCAPED_UNICODE);
-    // --- END: NEW NESTED DATA COLLECTION ---
+    // --- END: FLAT DATA COLLECTION ---
 
     $conn->begin_transaction();
     try {
@@ -289,38 +249,28 @@ if ($record_id > 0) {
             $support_functions = [];
             $dpcr_data['computation_type'] = 'Type1'; 
         } else {
-            // NEW: Check for new vs. old data structure.
-            // The new structure has 'indicators' as a key in the first element.
-            // The old structure has 'success_indicators'.
-            if (isset($content_array['strategic_functions'][0]['indicators']) || isset($content_array['core_functions'][0]['indicators']) || isset($content_array['support_functions'][0]['indicators'])) {
-                // This is the new nested structure
-                $strategic_functions = $content_array['strategic_functions'] ?? [];
-                $core_functions = $content_array['core_functions'] ?? [];
-                $support_functions = $content_array['support_functions'] ?? [];
-            } else if (!empty($content_array['strategic_functions']) || !empty($content_array['core_functions']) || !empty($content_array['support_functions'])) {
-                // This is the OLD flat structure, transform it for read-only viewing.
-                $is_legacy_data = true;
-                $transform_legacy = function($entries) {
-                    if (empty($entries)) return [];
-                    $grouped = [];
-                    // Group by major_output since it was repeated
-                    foreach ($entries as $entry) {
-                        $mfo = $entry['major_output'] ?? 'Uncategorized';
-                        if (!isset($grouped[$mfo])) {
-                            $grouped[$mfo] = [
-                                'major_output' => $mfo,
-                                'indicators' => []
-                            ];
+            // Flatten nested data if found, or use flat data as is
+            $flatten_data = function($entries) {
+                if (empty($entries)) return [];
+                // Check if it's nested (has 'indicators' key)
+                if (isset($entries[0]['indicators'])) {
+                    $flat = [];
+                    foreach ($entries as $block) {
+                        $mfo = $block['major_output'] ?? '';
+                        foreach ($block['indicators'] as $ind) {
+                            $ind['major_output'] = $mfo;
+                            $flat[] = $ind;
                         }
-                        $grouped[$mfo]['indicators'][] = $entry;
                     }
-                    return array_values($grouped);
-                };
-                $strategic_functions = $transform_legacy($content_array['strategic_functions'] ?? []);
-                $core_functions = $transform_legacy($content_array['core_functions'] ?? []);
-                $support_functions = $transform_legacy($content_array['support_functions'] ?? []);
-            }
+                    return $flat;
+                }
+                return $entries; // Already flat
+            };
 
+            $strategic_functions = $flatten_data($content_array['strategic_functions'] ?? []);
+            $core_functions = $flatten_data($content_array['core_functions'] ?? []);
+            $support_functions = $flatten_data($content_array['support_functions'] ?? []);
+            
             $dpcr_data['computation_type'] = $content_array['computation_type'] ?? 'Type1';
         }
         
@@ -329,10 +279,6 @@ if ($record_id > 0) {
             $_SESSION['error_message'] = "You don't have permission to edit this DPCR!";
             header("Location: records.php");
             exit();
-        }
-        if ($action === 'edit' && $is_legacy_data) {
-            $_SESSION['error_message'] = "This DPCR uses an outdated data format and can no longer be edited. You can view it or create a new one.";
-            $action = 'view'; // Force to view mode
         }
         if ($action === 'edit' && $dpcr_data['document_status'] !== 'Draft') {
             $_SESSION['error_message'] = "Only drafts can be edited!";
@@ -391,27 +337,32 @@ $strategic_weight_display = ($computation_type === 'Type2') ? '(45%)' : '(45%)';
 $core_weight_display = ($computation_type === 'Type2') ? '(45%)' : '(55%)';
 $support_display_style = ($computation_type === 'Type2') ? 'block' : 'none';
 
-// Helper for creating an empty indicator
-function get_empty_indicator() {
-    return ['success_indicators' => '', 'budget' => '', 'accountable' => '', 'actual_accomplishments' => '', 'q_rating' => '', 'e_rating' => '', 't_rating' => '', 'remarks' => ''];
-}
-
-// Helper for creating an empty MFO
-function get_empty_mfo() {
-    return ['major_output' => '', 'indicators' => [get_empty_indicator()]];
+// Helper for creating an empty row
+function get_empty_row() {
+    return [
+        'major_output' => '',
+        'success_indicators' => '',
+        'budget' => '',
+        'accountable' => '',
+        'actual_accomplishments' => '',
+        'q_rating' => '',
+        'e_rating' => '',
+        't_rating' => '',
+        'remarks' => ''
+    ];
 }
 
 
 // Ensure we have at least one empty entry for each category when creating/editing
 if ($action === 'new' || $action === 'edit') {
     if (empty($strategic_functions)) {
-        $strategic_functions[] = get_empty_mfo();
+        $strategic_functions[] = get_empty_row();
     }
     if (empty($core_functions)) {
-        $core_functions[] = get_empty_mfo();
+        $core_functions[] = get_empty_row();
     }
     if (empty($support_functions) && $computation_type === 'Type2') {
-         $support_functions[] = get_empty_mfo();
+         $support_functions[] = get_empty_row();
     }
 }
 
@@ -440,107 +391,77 @@ unset($_SESSION['error_message']);
 // --- NEW RENDERING FUNCTIONS ---
 
 /**
- * Generates the HTML for a single Success Indicator row within a Major Final Output block.
+ * Generates the HTML for a single DPCR row (MFO + Success Indicator + Review).
  */
-function generateIndicatorRowHtml($indicator, $category, $mfo_index, $ind_index, $action) {
+function generateRowHtml($entry, $category, $index, $action) {
     $cat_prefix = strtolower($category);
     $is_view = $action === 'view';
-    $name_prefix = "{$cat_prefix}[{$mfo_index}][indicators][{$ind_index}]";
+    $name_prefix = "{$cat_prefix}[{$index}]";
 
-    $has_review_data = !empty($indicator['actual_accomplishments']) || !empty($indicator['q_rating']) || !empty($indicator['e_rating']) || !empty($indicator['t_rating']) || !empty($indicator['remarks']);
+    $has_review_data = !empty($entry['actual_accomplishments']) || !empty($entry['q_rating']) || !empty($entry['e_rating']) || !empty($entry['t_rating']) || !empty($entry['remarks']);
     $show_review = !$is_view || $has_review_data;
 
-    $html = '<div class="indicator-row ' . ($is_view ? '' : 'p-2 border-start border-primary border-3') . ' mb-3">';
-    $html .= '<div class="row g-2">';
+    $html = '<div class="dpcr-row card card-body mb-4 shadow-sm border-start border-primary border-3">';
+    $html .= '<div class="row g-3">';
 
     // --- Commitment Fields ---
-    $html .= '<div class="col-md-5"><label class="form-label">Success Indicator</label>';
-    $html .= $is_view ? nl2br(htmlspecialchars($indicator['success_indicators'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[success_indicators]" rows="2" required>' . htmlspecialchars($indicator['success_indicators'] ?? '') . '</textarea>';
-    $html .= '</div>';
-    
-    $html .= '<div class="col-md-2"><label class="form-label">Budget</label>';
-    $budget_display = isset($indicator['budget']) && is_numeric($indicator['budget']) ? number_format((float)$indicator['budget'], 2) : 'N/A';
-    $html .= $is_view ? $budget_display : '<input type="number" class="form-control" name="' . $name_prefix . '[budget]" step="1" value="' . htmlspecialchars($indicator['budget'] ?? '') . '">';
+    $html .= '<div class="col-md-12">';
+    $html .= '<label class="form-label fw-bold text-primary">Major Final Output</label>';
+    $html .= $is_view ? '<h5>' . nl2br(htmlspecialchars($entry['major_output'] ?? '')) . '</h5>' : '<textarea class="form-control" name="' . $name_prefix . '[major_output]" rows="2" required>' . htmlspecialchars($entry['major_output'] ?? '') . '</textarea>';
     $html .= '</div>';
 
-    $html .= '<div class="col-md-4"><label class="form-label">Accountable</label>';
-    $html .= $is_view ? htmlspecialchars($indicator['accountable'] ?? '') : '<input type="text" class="form-control" name="' . $name_prefix . '[accountable]" value="' . htmlspecialchars($indicator['accountable'] ?? '') . '" required>';
+    $html .= '<div class="col-md-6">';
+    $html .= '<label class="form-label">Success Indicator</label>';
+    $html .= $is_view ? nl2br(htmlspecialchars($entry['success_indicators'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[success_indicators]" rows="2" required>' . htmlspecialchars($entry['success_indicators'] ?? '') . '</textarea>';
+    $html .= '</div>';
+    
+    $html .= '<div class="col-md-2">';
+    $html .= '<label class="form-label">Budget</label>';
+    $budget_display = isset($entry['budget']) && is_numeric($entry['budget']) ? number_format((float)$entry['budget'], 2) : 'N/A';
+    $html .= $is_view ? '<div class="form-control-plaintext">' . $budget_display . '</div>' : '<input type="number" class="form-control" name="' . $name_prefix . '[budget]" step="1" value="' . htmlspecialchars($entry['budget'] ?? '') . '">';
+    $html .= '</div>';
+
+    $html .= '<div class="col-md-3">';
+    $html .= '<label class="form-label">Accountable</label>';
+    $html .= $is_view ? '<div class="form-control-plaintext">' . htmlspecialchars($entry['accountable'] ?? '') . '</div>' : '<input type="text" class="form-control" name="' . $name_prefix . '[accountable]" value="' . htmlspecialchars($entry['accountable'] ?? '') . '" required>';
     $html .= '</div>';
     
     if (!$is_view) {
-        $html .= '<div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-danger btn-sm w-100 remove-indicator-row"><i class="bi bi-trash"></i></button></div>';
+        $html .= '<div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-danger btn-sm w-100 remove-dpcr-row"><i class="bi bi-trash"></i></button></div>';
     }
 
     // --- Review Fields ---
     if ($show_review) {
-        $html .= '<div class="col-12"><hr class="my-2" style="border-style: dashed;"></div>';
-        $html .= '<div class="col-md-5"><label class="form-label text-success">Actual Accomplishments</label>';
-        $html .= $is_view ? nl2br(htmlspecialchars($indicator['actual_accomplishments'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[actual_accomplishments]" rows="2">' . htmlspecialchars($indicator['actual_accomplishments'] ?? '') . '</textarea>';
+        $html .= '<div class="col-12"><hr class="my-1"></div>';
+        $html .= '<div class="col-md-6"><label class="form-label text-success fw-bold">Actual Accomplishments</label>';
+        $html .= $is_view ? nl2br(htmlspecialchars($entry['actual_accomplishments'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[actual_accomplishments]" rows="2">' . htmlspecialchars($entry['actual_accomplishments'] ?? '') . '</textarea>';
         $html .= '</div>';
 
-        $html .= '<div class="col-md-3"><label class="form-label text-success">Ratings (Q/E/T)</label><div class="input-group">';
+        $html .= '<div class="col-md-2"><label class="form-label text-success fw-bold">Ratings (Q/E/T)</label><div class="input-group">';
         if ($is_view) {
-            $html .= '<span class="form-control text-center">Q: <strong>' . htmlspecialchars($indicator['q_rating'] ?? '-') . '</strong></span>';
-            $html .= '<span class="form-control text-center">E: <strong>' . htmlspecialchars($indicator['e_rating'] ?? '-') . '</strong></span>';
-            $html .= '<span class="form-control text-center">T: <strong>' . htmlspecialchars($indicator['t_rating'] ?? '-') . '</strong></span>';
+            $html .= '<span class="form-control text-center">Q: <strong>' . htmlspecialchars($entry['q_rating'] ?? '-') . '</strong></span>';
+            $html .= '<span class="form-control text-center">E: <strong>' . htmlspecialchars($entry['e_rating'] ?? '-') . '</strong></span>';
+            $html .= '<span class="form-control text-center">T: <strong>' . htmlspecialchars($entry['t_rating'] ?? '-') . '</strong></span>';
         } else {
-            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[q_rating]" placeholder="Q" step="1" min="1" max="5" value="' . htmlspecialchars($indicator['q_rating'] ?? '') . '">';
-            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[e_rating]" placeholder="E" step="1" min="1" max="5" value="' . htmlspecialchars($indicator['e_rating'] ?? '') . '">';
-            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[t_rating]" placeholder="T" step="1" min="1" max="5" value="' . htmlspecialchars($indicator['t_rating'] ?? '') . '">';
+            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[q_rating]" placeholder="Q" step="1" min="1" max="5" value="' . htmlspecialchars($entry['q_rating'] ?? '') . '">';
+            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[e_rating]" placeholder="E" step="1" min="1" max="5" value="' . htmlspecialchars($entry['e_rating'] ?? '') . '">';
+            $html .= '<input type="number" class="form-control" name="' . $name_prefix . '[t_rating]" placeholder="T" step="1" min="1" max="5" value="' . htmlspecialchars($entry['t_rating'] ?? '') . '">';
         }
         $html .= '</div>';
         if ($is_view) {
-             $html .= '<div class="mt-1 text-center bg-light border p-1">Average (A): <strong>' . htmlspecialchars($indicator['a_rating'] ?? '-') . '</strong></div>';
+             $html .= '<div class="mt-1 text-center bg-light border p-1">Average (A): <strong>' . htmlspecialchars($entry['a_rating'] ?? '-') . '</strong></div>';
         }
         $html .= '</div>';
 
-        $html .= '<div class="col-md-4"><label class="form-label text-success">Remarks</label>';
-        $html .= $is_view ? nl2br(htmlspecialchars($indicator['remarks'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[remarks]" rows="2">' . htmlspecialchars($indicator['remarks'] ?? '') . '</textarea>';
+        $html .= '<div class="col-md-4"><label class="form-label text-success fw-bold">Remarks</label>';
+        $html .= $is_view ? nl2br(htmlspecialchars($entry['remarks'] ?? '')) : '<textarea class="form-control" name="' . $name_prefix . '[remarks]" rows="2">' . htmlspecialchars($entry['remarks'] ?? '') . '</textarea>';
         $html .= '</div>';
     }
     
-    $html .= '</div></div>'; // end .row and .indicator-row
+    $html .= '</div></div>'; // end .row and .dpcr-row
     return $html;
 }
 
-/**
- * Generates the HTML for a Major Final Output block, including its indicators.
- */
-function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
-    $is_view = $action === 'view';
-    $cat_prefix = strtolower($category);
-    $name_prefix = "{$cat_prefix}[{$mfo_index}]";
-
-    $html = '<div class="mfo-block card card-body mb-4 shadow-sm">';
-    
-    // MFO Header
-    $html .= '<div class="d-flex justify-content-between align-items-start">';
-    $html .= '<div class="flex-grow-1">';
-    $html .= '<label class="form-label fw-bold text-primary">Major Final Output</label>';
-    $html .= $is_view ? '<h4>' . nl2br(htmlspecialchars($mfo_entry['major_output'] ?? '')) . '</h4>' : '<textarea class="form-control" name="' . $name_prefix . '[major_output]" rows="2" required>' . htmlspecialchars($mfo_entry['major_output'] ?? '') . '</textarea>';
-    $html .= '</div>';
-    if (!$is_view) {
-         $html .= '<button type="button" class="btn btn-outline-danger ms-3 remove-mfo-block"><i class="bi bi-trash-fill"></i></button>';
-    }
-    $html .= '</div><hr>';
-
-    // Indicators container
-    $html .= '<div class="indicators-container ms-lg-3">';
-    if (!empty($mfo_entry['indicators'])) {
-        foreach ($mfo_entry['indicators'] as $ind_index => $indicator) {
-            $html .= generateIndicatorRowHtml($indicator, $category, $mfo_index, $ind_index, $action);
-        }
-    }
-    $html .= '</div>';
-
-    // "Add Indicator" button
-    if (!$is_view) {
-        $html .= '<div class="mt-2"><button type="button" class="btn btn-success btn-sm add-indicator-row"><i class="bi bi-plus"></i> Add Success Indicator</button></div>';
-    }
-    
-    $html .= '</div>'; // close .mfo-block
-    return $html;
-}
 
 ?>
 
@@ -656,13 +577,13 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                             <span id="strategic_weight" class="float-end"><?php echo $strategic_weight_display; ?></span>
                         </h4>
                         <div id="strategic_functions_container">
-                            <?php foreach ($strategic_functions as $mfo_index => $mfo_entry): ?>
-                                <?php echo generateMajorOutputHtml($mfo_entry, 'Strategic', $mfo_index, $action); ?>
+                            <?php foreach ($strategic_functions as $index => $entry): ?>
+                                <?php echo generateRowHtml($entry, 'Strategic', $index, $action); ?>
                             <?php endforeach; ?>
                         </div>
                         <?php if ($action === 'new' || $action === 'edit'): ?>
-                        <button type="button" class="btn btn-sm btn-success mb-4" id="add_strategic_mfo">
-                            <i class="bi bi-plus-circle"></i> Add Strategic MFO
+                        <button type="button" class="btn btn-sm btn-success mb-4" id="add_strategic_row">
+                            <i class="bi bi-plus-circle"></i> Add Strategic Row
                         </button>
                         <?php endif; ?>
 
@@ -672,13 +593,13 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                             <span id="core_weight" class="float-end"><?php echo $core_weight_display; ?></span>
                         </h4>
                         <div id="core_functions_container">
-                             <?php foreach ($core_functions as $mfo_index => $mfo_entry): ?>
-                                <?php echo generateMajorOutputHtml($mfo_entry, 'Core', $mfo_index, $action); ?>
+                             <?php foreach ($core_functions as $index => $entry): ?>
+                                <?php echo generateRowHtml($entry, 'Core', $index, $action); ?>
                             <?php endforeach; ?>
                         </div>
                         <?php if ($action === 'new' || $action === 'edit'): ?>
-                        <button type="button" class="btn btn-sm btn-success mb-4" id="add_core_mfo">
-                            <i class="bi bi-plus-circle"></i> Add Core MFO
+                        <button type="button" class="btn btn-sm btn-success mb-4" id="add_core_row">
+                            <i class="bi bi-plus-circle"></i> Add Core Row
                         </button>
                         <?php endif; ?>
                         
@@ -690,15 +611,15 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                             <div id="support_functions_container">
                                 <?php 
                                 if ($computation_type === 'Type2' || !empty($support_functions)):
-                                    foreach ($support_functions as $mfo_index => $mfo_entry): 
-                                        echo generateMajorOutputHtml($mfo_entry, 'Support', $mfo_index, $action); 
+                                    foreach ($support_functions as $index => $entry): 
+                                        echo generateRowHtml($entry, 'Support', $index, $action); 
                                     endforeach;
                                 endif;
                                 ?>
                             </div>
                             <?php if ($action === 'new' || $action === 'edit'): ?>
-                            <button type="button" class="btn btn-sm btn-info mb-4" id="add_support_mfo">
-                                <i class="bi bi-plus-circle"></i> Add Support MFO
+                            <button type="button" class="btn btn-sm btn-info mb-4" id="add_support_row">
+                                <i class="bi bi-plus-circle"></i> Add Support Row
                             </button>
                             <?php endif; ?>
                         </div>
@@ -715,7 +636,7 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                         <!-- View Mode Actions -->
                         <?php if ($action === 'view' && $record_id > 0): ?>
                         <div class="mt-4 text-center">
-                            <?php if ($status === 'Draft' && !$is_legacy_data): ?>
+                            <?php if ($status === 'Draft'): ?>
                                 <a href="dpcr.php?action=edit&id=<?php echo $record_id; ?>" class="btn btn-warning"><i class="bi bi-pencil"></i> Edit DPCR</a>
                             <?php endif; ?>
                             <a href="records.php" class="btn btn-secondary">Done Viewing</a>
@@ -760,7 +681,7 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                                             $badge_class = 'bg-secondary';
                                             if ($status === 'Pending' || $status === 'For Review') $badge_class = 'bg-warning text-dark';
                                             if ($status === 'Approved') $badge_class = 'bg-success';
-                                            if ($status === 'Rejected') $badge_class = 'bg-danger';
+                                            if ($status === 'For Revision') $badge_class = 'bg-danger';
                                             if ($status === 'Distributed' || $status === 'In Progress' || $status === 'For Completion Review' || $status === 'Submitted') $badge_class = 'bg-info text-white';
                                             ?>
                                             <span class="badge <?php echo $badge_class; ?>"><?php echo $status; ?></span>
@@ -768,7 +689,7 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
                                         <td><?php echo date('M d, Y', strtotime($record['date_submitted'] ?? $record['date_created'])); ?></td>
                                         <td>
                                             <a href="dpcr.php?action=view&id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-primary me-1"><i class="bi bi-eye"></i> View</a>
-                                            <?php if ($record['document_status'] == 'Draft' || $record['document_status'] == 'Rejected'): ?>
+                                            <?php if ($record['document_status'] == 'Draft' || $record['document_status'] == 'For Revision'): ?>
                                                 <a href="dpcr.php?action=edit&id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i> Edit</a>
                                             <?php endif; ?>
                                             <?php if ($record['document_status'] == 'Draft'): ?>
@@ -792,7 +713,7 @@ function generateMajorOutputHtml($mfo_entry, $category, $mfo_index, $action) {
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
 <script>
-// JavaScript for dynamic, nested form management
+// JavaScript for dynamic, flat form management
 $(document).ready(function() {
     
     // --- Computation Type Logic ---
@@ -804,9 +725,9 @@ $(document).ready(function() {
             $('#core_weight').text('(45%)');
             $('#support_section').show();
 
-            // If there are no MFOs in the Support section yet, add one
-            if ($('#support_functions_container').children('.mfo-block').length === 0) {
-                addMfoBlock('Support');
+            // If there are no rows in the Support section yet, add one
+            if ($('#support_functions_container').children('.dpcr-row').length === 0) {
+                addRow('Support');
             }
             
         } else {
@@ -821,12 +742,17 @@ $(document).ready(function() {
     
     // --- TEMPLATES ---
 
-    const indicatorTemplate = (category, mfo_index, ind_index) => {
-        const name_prefix = `${category}[${mfo_index}][indicators][${ind_index}]`;
+    const rowTemplate = (category, index) => {
+        const cat_lower = category.toLowerCase();
+        const name_prefix = `${cat_lower}[${index}]`;
         return `
-        <div class="indicator-row p-2 border-start border-primary border-3 mb-3">
-            <div class="row g-2">
-                <div class="col-md-5">
+        <div class="dpcr-row card card-body mb-4 shadow-sm border-start border-primary border-3">
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-bold text-primary">Major Final Output</label>
+                    <textarea class="form-control" name="${name_prefix}[major_output]" rows="2" required></textarea>
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Success Indicator</label>
                     <textarea class="form-control" name="${name_prefix}[success_indicators]" rows="2" required></textarea>
                 </div>
@@ -834,20 +760,20 @@ $(document).ready(function() {
                     <label class="form-label">Budget</label>
                     <input type="number" class="form-control" name="${name_prefix}[budget]" step="1">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Accountable</label>
                     <input type="text" class="form-control" name="${name_prefix}[accountable]" required>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
-                    <button type="button" class="btn btn-danger btn-sm w-100 remove-indicator-row"><i class="bi bi-trash"></i></button>
+                    <button type="button" class="btn btn-danger btn-sm w-100 remove-dpcr-row"><i class="bi bi-trash"></i></button>
                 </div>
-                <div class="col-12"><hr class="my-2" style="border-style: dashed;"></div>
-                <div class="col-md-5">
-                    <label class="form-label text-success">Actual Accomplishments</label>
+                <div class="col-12"><hr class="my-1"></div>
+                <div class="col-md-6">
+                    <label class="form-label text-success fw-bold">Actual Accomplishments</label>
                     <textarea class="form-control" name="${name_prefix}[actual_accomplishments]" rows="2"></textarea>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label text-success">Ratings (Q/E/T)</label>
+                <div class="col-md-2">
+                    <label class="form-label text-success fw-bold">Ratings (Q/E/T)</label>
                     <div class="input-group">
                         <input type="number" class="form-control" name="${name_prefix}[q_rating]" placeholder="Q" step="1" min="1" max="5">
                         <input type="number" class="form-control" name="${name_prefix}[e_rating]" placeholder="E" step="1" min="1" max="5">
@@ -855,81 +781,48 @@ $(document).ready(function() {
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label text-success">Remarks</label>
+                    <label class="form-label text-success fw-bold">Remarks</label>
                     <textarea class="form-control" name="${name_prefix}[remarks]" rows="2"></textarea>
                 </div>
             </div>
         </div>`;
     };
 
-    const mfoTemplate = (category, mfo_index) => {
-        const name_prefix = `${category}[${mfo_index}]`;
-        // An MFO starts with one indicator
-        const first_indicator = indicatorTemplate(category, mfo_index, 0);
+    // --- DYNAMIC ROW MANAGEMENT ---
 
-        return `
-        <div class="mfo-block card card-body mb-4 shadow-sm">
-            <div class="d-flex justify-content-between align-items-start">
-                <div class="flex-grow-1">
-                    <label class="form-label fw-bold text-primary">Major Final Output</label>
-                    <textarea class="form-control" name="${name_prefix}[major_output]" rows="2" required></textarea>
-                </div>
-                <button type="button" class="btn btn-outline-danger ms-3 remove-mfo-block"><i class="bi bi-trash-fill"></i></button>
-            </div>
-            <hr>
-            <div class="indicators-container ms-lg-3">
-                ${first_indicator}
-            </div>
-            <div class="mt-2">
-                <button type="button" class="btn btn-success btn-sm add-indicator-row"><i class="bi bi-plus"></i> Add Success Indicator</button>
-            </div>
-        </div>`;
-    };
-
-    // --- DYNAMIC ROW/BLOCK MANAGEMENT ---
-
-    function addMfoBlock(category) {
+    function addRow(category) {
         const cat_lower = category.toLowerCase();
         const container = $(`#${cat_lower}_functions_container`);
-        const mfo_index = container.children('.mfo-block').length;
-        const new_mfo_html = mfoTemplate(cat_lower, mfo_index);
-        container.append(new_mfo_html);
+        const index = container.children('.dpcr-row').length;
+        const new_row_html = rowTemplate(category, index);
+        container.append(new_row_html);
     }
 
-    // Add MFO block
-    $('#add_strategic_mfo').click(() => addMfoBlock('Strategic'));
-    $('#add_core_mfo').click(() => addMfoBlock('Core'));
-    $('#add_support_mfo').click(() => addMfoBlock('Support'));
+    // Add row buttons
+    $('#add_strategic_row').click(() => addRow('Strategic'));
+    $('#add_core_row').click(() => addRow('Core'));
+    $('#add_support_row').click(() => addRow('Support'));
 
-    // Remove MFO block
-    $(document).on('click', '.remove-mfo-block', function() {
-        $(this).closest('.mfo-block').remove();
-    });
-
-    // Add Indicator row
-    $(document).on('click', '.add-indicator-row', function() {
-        const mfo_block = $(this).closest('.mfo-block');
-        const indicators_container = mfo_block.find('.indicators-container');
+    // Remove row button
+    $(document).on('click', '.remove-dpcr-row', function() {
+        const row = $(this).closest('.dpcr-row');
+        const container = row.parent();
+        row.remove();
         
-        // Determine category and mfo_index from the first field in the MFO block
-        const first_mfo_input = mfo_block.find('textarea[name*="[major_output]"]');
-        const name = first_mfo_input.attr('name'); // e.g., strategic[0][major_output]
-        
-        const category = name.substring(0, name.indexOf('['));
-        const mfo_index = name.match(/\[(\d+)\]/)[1];
-        
-        const ind_index = indicators_container.children('.indicator-row').length;
-        
-        const new_indicator_html = indicatorTemplate(category, mfo_index, ind_index);
-        indicators_container.append(new_indicator_html);
-    });
-
-    // Remove Indicator row
-    $(document).on('click', '.remove-indicator-row', function() {
-        $(this).closest('.indicator-row').remove();
+        // Re-index remaining rows in this container
+        const category = container.attr('id').split('_')[0]; // e.g., strategic from strategic_functions_container
+        container.children('.dpcr-row').each(function(index) {
+            const name_prefix = `${category}[${index}]`;
+            $(this).find('[name]').each(function() {
+                const name = $(this).attr('name');
+                const new_name = name.replace(/^[a-z]+\[\d+\]/, name_prefix);
+                $(this).attr('name', new_name);
+            });
+        });
     });
 });
 </script>
+
 
 <?php
 // Include footer

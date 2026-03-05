@@ -218,7 +218,7 @@ unset($_SESSION['error_message']);
                         <option value="Draft" <?php echo ($filter_status == "Draft") ? "selected" : ""; ?>>Draft</option>
                         <option value="Pending" <?php echo ($filter_status == "Pending") ? "selected" : ""; ?>>Pending</option>
                         <option value="Approved" <?php echo ($filter_status == "Approved") ? "selected" : ""; ?>>Approved</option>
-                        <option value="Rejected" <?php echo ($filter_status == "Rejected") ? "selected" : ""; ?>>Rejected</option>
+                        <option value="For Revision" <?php echo ($filter_status == "For Revision") ? "selected" : ""; ?>>For Revision</option>
                     </select>
                 </div>
                 
@@ -327,7 +327,7 @@ unset($_SESSION['error_message']);
                                         $status_badge = 'info';
                                         $status_icon = 'bi-file-earmark-arrow-up-fill';
                                         break;
-                                    case 'Rejected':
+                                    case 'For Revision':
                                         $status_badge = 'danger';
                                         $status_icon = 'bi-x-circle-fill';
                                         break;
@@ -369,7 +369,7 @@ unset($_SESSION['error_message']);
                                         <i class="bi bi-pencil"></i> Edit
                                     </a>
                                     <a href="submit_draft.php?id=<?php echo $record['id']; ?>" 
-                                       onclick="return confirm('Are you sure you want to submit this draft for review? You will not be able to edit it after submission.')"
+                                       onclick="return confirm('Are you sure you want to submit this draft For Review? You will not be able to edit it after submission.')"
                                        class="btn btn-sm btn-outline-success">
                                         <i class="bi bi-check-circle"></i> Submit
                                     </a>

@@ -256,7 +256,7 @@ CREATE TABLE `records` (
   `form_type` enum('DPCR','IPCR','IDP') NOT NULL,
   `period` varchar(255) NOT NULL,
   `content` longtext DEFAULT NULL,
-  `status` enum('Draft','Pending','Approved','Rejected') NOT NULL DEFAULT 'Draft',
+  `status` enum('Draft','Pending','Approved','For Revision') NOT NULL DEFAULT 'Draft',
   `date_submitted` timestamp NULL DEFAULT NULL,
   `reviewed_by` int(11) DEFAULT NULL,
   `date_reviewed` timestamp NULL DEFAULT NULL,

@@ -156,7 +156,7 @@ $departments_result = $conn->query($departments_query);
                                 <option value="Draft" <?php echo ($filter_status == "Draft") ? "selected" : ""; ?>>Draft</option>
                                 <option value="Pending" <?php echo ($filter_status == "Pending") ? "selected" : ""; ?>>Pending</option>
                                 <option value="Approved" <?php echo ($filter_status == "Approved") ? "selected" : ""; ?>>Approved</option>
-                                <option value="Rejected" <?php echo ($filter_status == "Rejected") ? "selected" : ""; ?>>Rejected</option>
+                                <option value="For Revision" <?php echo ($filter_status == "For Revision") ? "selected" : ""; ?>>For Revision</option>
                             </select>
                         </div>
                         
@@ -206,7 +206,7 @@ $departments_result = $conn->query($departments_query);
                                                 case 'Draft': $status_badge = 'secondary'; break;
                                                 case 'Approved': $status_badge = 'success'; break;
                                                 case 'Pending': $status_badge = 'warning'; break;
-                                                case 'Rejected': $status_badge = 'danger'; break;
+                                                case 'For Revision': $status_badge = 'danger'; break;
                                             }
                                             ?>
                                             <span class="badge bg-<?php echo $status_badge; ?>">

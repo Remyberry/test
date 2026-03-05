@@ -75,7 +75,7 @@ foreach ($all_ipcr_records as $record) {
 $status_counts = [
     'Pending' => 0,
     'Approved' => 0,
-    'Rejected' => 0,
+    'For Revision' => 0,
     'Draft' => 0,
     'Distributed' => 0,
     'For Review' => 0
@@ -262,7 +262,7 @@ $periods_result = $stmt->get_result();
                             <option value="all" <?php echo ($filter_status == "all") ? "selected" : ""; ?>>All Status</option>
                             <option value="Pending" <?php echo ($filter_status == "Pending") ? "selected" : ""; ?>>Pending</option>
                             <option value="Approved" <?php echo ($filter_status == "Approved") ? "selected" : ""; ?>>Approved</option>
-                            <option value="Rejected" <?php echo ($filter_status == "Rejected") ? "selected" : ""; ?>>Rejected</option>
+                            <option value="For Revision" <?php echo ($filter_status == "For Revision") ? "selected" : ""; ?>>For Revision</option>
                         </select>
                     </div>
                     <div class="col-md-3 mb-2 d-flex align-items-end">
@@ -317,7 +317,7 @@ $periods_result = $stmt->get_result();
                                                 $current_time = time();
                                                 $is_new = ($current_time - $submitted_time) < 86400; // 24 hours in seconds
                                                 break;
-                                            case 'Rejected':
+                                            case 'For Revision':
                                                 $status_badge = 'danger';
                                                 break;
                                             case 'Draft':

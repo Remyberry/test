@@ -52,7 +52,7 @@ $status_counts = [
     'Pending' => 0,
     'In Progress' => 0,
     'Approved' => 0,
-    'Rejected' => 0,
+    'For Revision' => 0,
     'Draft' => 0,
     'For Completion Review' => 0, // Added for new review stage
     'For Review' => 0
@@ -261,7 +261,7 @@ $periods_result = $stmt->get_result();
                                             case 'In Progress': $status_badge = 'info text-dark'; break;
                                             case 'For Review': $status_badge = 'primary'; break;
                                             case 'For Completion Review': $status_badge = 'primary'; break; // Added
-                                            case 'Rejected': $status_badge = 'danger'; break;
+                                            case 'For Revision': $status_badge = 'danger'; break;
                                         }
                                         ?>
                                         <span class="badge bg-<?php echo $status_badge; ?>">

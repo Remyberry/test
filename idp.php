@@ -40,7 +40,7 @@ $current_semi_annual_period_name = ($curr_month <= 6) ? "January $curr_year - Ju
 $has_active_idp_this_period = false;
 $active_idp_id_this_period = 0; // Stores ID of the active IDP for the current period
 
-// Check for any IDP for the current period that is not a draft or rejected, i.e., "active"
+// Check for any IDP for the current period that is not a draft or For Revision, i.e., "active"
 $check_active_sql = "SELECT id FROM records WHERE user_id = ? AND form_type = 'IDP' AND period = ? AND document_status IN ('Pending', 'In Progress', 'For Review', 'For Completion Review', 'Submitted') LIMIT 1";
 $check_active_stmt = $conn->prepare($check_active_sql);
 $check_active_stmt->bind_param("is", $user_id, $current_semi_annual_period_name);
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
     } elseif (isset($_POST['submit_idp'])) {
-        // Submit for Review
+        // Submit For Review
         $dept_head_name = "your department head"; // Default value
         
         // Use the same logic as IPCR to get the department head's name
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class='d-flex align-items-center mb-2'>
                         <div class='me-3'><i class='fas fa-check-circle text-success fs-3'></i></div>
                         <div>
-                            Your form has been sent to <strong>" . htmlspecialchars($dept_head_name) . "</strong> for review. 
+                            Your form has been sent to <strong>" . htmlspecialchars($dept_head_name) . "</strong> For Review. 
                             You will be notified when your submission has been reviewed.
                         </div>
                     </div>";
@@ -183,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $record_id = $conn->insert_id;
             }
-            $message = "<strong>Success!</strong> Your IDP has been submitted to " . htmlspecialchars($dept_head_name) . " for review.";
+            $message = "<strong>Success!</strong> Your IDP has been submitted to " . htmlspecialchars($dept_head_name) . " For Review.";
             $message_type = "success";
         }
     } elseif (isset($_POST['submit_completion_review'])) {
@@ -217,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         } else {
-            $message = "Cannot submit for review. Invalid record ID.";
+            $message = "Cannot submit For Review. Invalid record ID.";
             $message_type = "danger";
         }
     }
@@ -399,7 +399,7 @@ foreach ($offsets as $offset) {
                             <input type="hidden" name="record_id" value="<?php echo $current_record_id; ?>">
                             <div class="mb-3">
                                 <label for="period" class="form-label fw-bold">Period Covered:</label>
-                                <?php if ($current_record_id > 0 && $record_status !== 'Draft' && $record_status !== 'Rejected'): ?>
+                                <?php if ($current_record_id > 0 && $record_status !== 'Draft' && $record_status !== 'For Revision'): ?>
                                     <input type="text" class="form-control" name="period" id="period" value="<?php echo htmlspecialchars($current_period); ?>" readonly>
                                 <?php else: ?>
                                     <select class="form-select" name="period" id="period" required>
@@ -437,8 +437,8 @@ foreach ($offsets as $offset) {
                                         <tbody id="idp-entries-body">
                                             <?php foreach ($idp_entries as $index => $entry): ?>
                                                 <tr class="idp-entry-row">
-                                                    <td><textarea class="form-control" name="main_objectives[]" rows="5" placeholder="Enter objectives here..." <?php echo ($is_phase_2 || ($record_status && $record_status !== 'Draft' && $record_status !== 'Rejected')) ? 'readonly' : ''; ?>><?php echo htmlspecialchars($entry['objective'] ?? ''); ?></textarea></td>
-                                                    <td><textarea class="form-control" name="plan_of_action[]" rows="5" placeholder="Enter plan of action here..." <?php echo ($is_phase_2 || ($record_status && $record_status !== 'Draft' && $record_status !== 'Rejected')) ? 'readonly' : ''; ?>><?php echo htmlspecialchars($entry['action_plan'] ?? ''); ?></textarea></td>
+                                                    <td><textarea class="form-control" name="main_objectives[]" rows="5" placeholder="Enter objectives here..." <?php echo ($is_phase_2 || ($record_status && $record_status !== 'Draft' && $record_status !== 'For Revision')) ? 'readonly' : ''; ?>><?php echo htmlspecialchars($entry['objective'] ?? ''); ?></textarea></td>
+                                                    <td><textarea class="form-control" name="plan_of_action[]" rows="5" placeholder="Enter plan of action here..." <?php echo ($is_phase_2 || ($record_status && $record_status !== 'Draft' && $record_status !== 'For Revision')) ? 'readonly' : ''; ?>><?php echo htmlspecialchars($entry['action_plan'] ?? ''); ?></textarea></td>
                                                     <?php if ($is_phase_2): ?>
                                                         <td>
                                                             <textarea class="form-control" name="status[]" rows="5" placeholder="Enter status (e.g., Accomplished, In Progress) and any relevant details..."><?php echo htmlspecialchars($entry['status'] ?? 'Not Started'); ?></textarea>
@@ -460,12 +460,12 @@ foreach ($offsets as $offset) {
                                     <button type="submit" name="save_draft" class="btn btn-secondary btn-lg"><i class="fas fa-save"></i> Save Progress</button>
                                     <button type="submit" name="submit_completion_review" class="btn btn-success btn-lg" onclick="return confirm('Are you sure you want to submit for final review?');"><i class="fas fa-paper-plane"></i> Submit for Final Review</button>
                                 </div>
-                            <?php elseif ($current_record_id > 0 && $record_status !== 'Draft' && $record_status !== 'Rejected'): ?>
+                            <?php elseif ($current_record_id > 0 && $record_status !== 'Draft' && $record_status !== 'For Revision'): ?>
                                 <div class="alert alert-info mt-4">This IDP has been submitted. Status: <strong><?php echo $record_status; ?></strong></div>
                             <?php else: ?>
                                 <div class="d-flex justify-content-between mt-4">
                                     <button type="submit" name="save_draft" class="btn btn-secondary btn-lg"><i class="fas fa-save"></i> Save as Draft</button>
-                                    <button type="submit" name="submit_idp" class="btn btn-success btn-lg" onclick="return confirm('Are you sure you want to submit this IDP?');"><i class="fas fa-paper-plane"></i> Submit for Review</button>
+                                    <button type="submit" name="submit_idp" class="btn btn-success btn-lg" onclick="return confirm('Are you sure you want to submit this IDP?');"><i class="fas fa-paper-plane"></i> Submit For Review</button>
                                 </div>
                             <?php endif; ?>
                         </form>
@@ -495,7 +495,7 @@ foreach ($offsets as $offset) {
                                             $badge_class = 'bg-secondary';
                                             if ($status === 'Pending' || $status === 'For Review') $badge_class = 'bg-warning text-dark';
                                             if ($status === 'Approved') $badge_class = 'bg-success';
-                                            if ($status === 'Rejected') $badge_class = 'bg-danger';
+                                            if ($status === 'For Revision') $badge_class = 'bg-danger';
                                             if ($status === 'In Progress' || $status === 'For Completion Review' || $status === 'Submitted') $badge_class = 'bg-info text-white';
                                             ?>
                                             <span class="badge <?php echo $badge_class; ?>"><?php echo $status; ?></span>
@@ -506,7 +506,7 @@ foreach ($offsets as $offset) {
                                             <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && ($record['document_status'] == 'In Progress' || $record['document_status'] == 'For Completion Review') && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can update progress of an Approved IDP that is now In Progress or For Completion Review ?>
                                                 <a href="idp.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-success me-1"><i class="bi bi-check2-circle"></i> Update Progress</a>
                                             <?php endif; ?>
-                                             <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && ($record['document_status'] == 'Draft' || $record['document_status'] == 'Rejected') && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can edit drafts or rejected IDPs ?>
+                                             <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && ($record['document_status'] == 'Draft' || $record['document_status'] == 'For Revision') && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can edit drafts or For Revision IDPs ?>
                                                 <a href="idp.php?id=<?php echo $record['id']; ?>" class="btn btn-sm btn-outline-warning me-1"><i class="bi bi-pencil"></i> Edit</a>
                                             <?php endif; ?>
                                             <?php if (($user_role == 'regular_employee' || $user_role == 'department_head') && $record['document_status'] == 'Draft'  && ($record['user_id'] == $user_id)): // Only employee/DH who owns it can delete drafts ?>

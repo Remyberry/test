@@ -386,7 +386,7 @@ else if ($user_role === 'department_head') {
                                                 case 'Pending':
                                                     $status_class = 'warning';
                                                     break;
-                                                case 'Rejected':
+                                                case 'For Revision':
                                                     $status_class = 'danger';
                                                     break;
                                             }

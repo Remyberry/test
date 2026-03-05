@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS records (
     form_type ENUM('DPCR', 'IPCR', 'IDP') NOT NULL,
     period VARCHAR(255) NOT NULL,
     content LONGTEXT,
-    status ENUM('Draft', 'Pending', 'Approved', 'Rejected') NOT NULL DEFAULT 'Draft',
+    status ENUM('Draft', 'Pending', 'Approved', 'For Revision') NOT NULL DEFAULT 'Draft',
     date_submitted TIMESTAMP NULL,
     reviewed_by INT,
     date_reviewed TIMESTAMP NULL,
@@ -148,7 +148,7 @@ VALUES
 (2, 'DPCR', 'Q1 2023', 'Approved', '2023-03-15 10:00:00'),
 (2, 'IPCR', 'Q1 2023', 'Approved', '2023-03-20 11:30:00'),
 (3, 'DPCR', 'Q1 2023', 'Pending', '2023-03-25 09:15:00'),
-(3, 'IDP', 'Annual 2023', 'Rejected', '2023-01-10 14:20:00'),
+(3, 'IDP', 'Annual 2023', 'For Revision', '2023-01-10 14:20:00'),
 (6, 'IPCR', 'Q2 2023', 'Pending', '2023-06-10 16:45:00'),
 (2, 'IPCR', 'Q3 2023', 'Draft', NULL);
 

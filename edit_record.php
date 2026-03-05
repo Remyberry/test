@@ -54,10 +54,10 @@ if ($user_role == 'admin' || $user_role == 'president') {
     $can_edit = true;
 } else if ($user_role == 'department_head' && $user_department_id == $record['department_id']) {
     // DH can edit templates, review submissions, or add comments to rejections
-    if ($record['form_type'] == 'IPCR' && in_array($status, ['Distributed', 'For Review', 'Rejected'])) {
+    if ($record['form_type'] == 'IPCR' && in_array($status, ['Distributed', 'For Review', 'For Revision'])) {
         $can_edit = true;
     }
-    if ($record['form_type'] == 'IDP' && in_array($status, ['Pending', 'For Review', 'For Completion Review', 'Rejected'])) {
+    if ($record['form_type'] == 'IDP' && in_array($status, ['Pending', 'For Review', 'For Completion Review', 'For Revision'])) {
         $can_edit = true;
     }
     // Allow DH to edit DPCRs as before
@@ -65,8 +65,8 @@ if ($user_role == 'admin' || $user_role == 'president') {
          $can_edit = true;
     }
 } else if ($user_role == 'regular_employee' && $user_id == $record['user_id']) {
-    // Employee can only edit their own IPCR if it was rejected
-    if ($record['form_type'] == 'IPCR' && $status == 'Rejected') {
+    // Employee can only edit their own IPCR if it was For Revision
+    if ($record['form_type'] == 'IPCR' && $status == 'For Revision') {
         $can_edit = true;
     }
      // Allow employees to edit their own drafts of other forms (maintains original logic)
@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $conn->prepare($update_query);
             $stmt->bind_param("ssi", $updated_content_json, $new_status, $record_id);
         } elseif (isset($_POST['reject_ipcr'])) {
-            $new_status = 'Rejected';
+            $new_status = 'For Revision';
             $update_query = "UPDATE records SET content = ?, document_status = ?, date_submitted = NOW() WHERE id = ?";
             $stmt = $conn->prepare($update_query);
             $stmt->bind_param("ssi", $updated_content_json, $new_status, $record_id);
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $conn->prepare($update_query);
             $stmt->bind_param("sii", $new_status, $user_id, $record_id);
         } elseif (isset($_POST['reject_idp'])) {
-            $new_status = 'Rejected';
+            $new_status = 'For Revision';
             $update_query = "UPDATE records SET document_status = ?, reviewed_by = ?, date_reviewed = NOW() WHERE id = ?";
             $stmt = $conn->prepare($update_query);
             $stmt->bind_param("sii", $new_status, $user_id, $record_id);
@@ -373,11 +373,11 @@ switch ($record['form_type']) {
                 $is_employee = ($user_role == 'regular_employee');
                 $status = $record['document_status'];
 
-                // DH can edit MFOs if form is just distributed or was rejected back to them for template correction
-                $dh_can_edit_template = $is_dh && in_array($status, ['Distributed', 'Rejected', 'For Review']);
+                // DH can edit MFOs if form is just distributed or was For Revision back to them for template correction
+                $dh_can_edit_template = $is_dh && in_array($status, ['Distributed', 'For Revision', 'For Review']);
 
-                // Employee can edit their accomplishments and ratings if it was rejected
-                $employee_can_edit_submission = $is_employee && $status == 'Rejected';
+                // Employee can edit their accomplishments and ratings if it was For Revision
+                $employee_can_edit_submission = $is_employee && $status == 'For Revision';
                 
                 // DH can add their ratings and comments when it's submitted for their review
                 $dh_can_review = $is_dh && $status == 'For Review';
@@ -387,8 +387,8 @@ switch ($record['form_type']) {
                 $submission_disabled = !$employee_can_edit_submission; // Only employee can edit submission when allowed
                 $review_disabled = !$dh_can_review;
                 
-                // For Rejected status, employee submission fields are open
-                if ($status == 'Rejected' && $is_employee) {
+                // For For Revision status, employee submission fields are open
+                if ($status == 'For Revision' && $is_employee) {
                     $template_disabled = true;
                     $submission_disabled = false;
                     $review_disabled = true;
@@ -586,7 +586,7 @@ switch ($record['form_type']) {
                             </button>
                         <?php elseif ($employee_can_edit_submission): ?>
                              <button type="submit" name="resubmit_ipcr" class="btn btn-primary">
-                                <i class="bi bi-send"></i> Resubmit for Review
+                                <i class="bi bi-send"></i> Resubmit For Review
                             </button>
                         <?php elseif ($dh_can_edit_template): ?>
                             <button type="submit" name="update_template" class="btn btn-primary">

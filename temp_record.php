@@ -62,9 +62,9 @@ if (!$can_review) {
     exit();
 }
 
-// Check if record is pending for review
+// Check if record is pending For Review
 if ($record['document_status'] !== 'Pending') {
-    $_SESSION['error_message'] = "This record is not pending for review";
+    $_SESSION['error_message'] = "This record is not pending For Review";
     header("Location: view_record.php?id=" . $record_id);
     exit();
 }
@@ -546,7 +546,7 @@ if ($record['form_type'] === 'IDP') {
                                         </label>
                                     </div>
                                     <div class="form-check form-check-inline flex-grow-1">
-                                        <input class="form-check-input" type="radio" name="status" id="statusReject" value="Rejected" required>
+                                        <input class="form-check-input" type="radio" name="status" id="statusReject" value="For Revision" required>
                                         <label class="form-check-label btn btn-outline-danger w-100 mb-0 d-flex align-items-center justify-content-center" for="statusReject">
                                             <i class="bi bi-x-circle-fill me-2"></i> Reject
                                         </label>

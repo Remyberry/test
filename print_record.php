@@ -86,34 +86,25 @@ if ($record['form_type'] === 'DPCR') {
     $support_functions = [];
 
     if ($content !== null && is_array($content)) {
-        // Check for new vs. old data structure. New structure has 'indicators'.
-        if (isset($content['strategic_functions'][0]['indicators']) || isset($content['core_functions'][0]['indicators']) || isset($content['support_functions'][0]['indicators'])) {
-            // New nested structure
-            $strategic_functions = $content['strategic_functions'] ?? [];
-            $core_functions = $content['core_functions'] ?? [];
-            $support_functions = $content['support_functions'] ?? [];
-        } else if (!empty($content['strategic_functions']) || !empty($content['core_functions']) || !empty($content['support_functions'])) {
-            // Old flat structure, transform it for viewing
-            $transform_legacy = function($entries) {
-                if (empty($entries)) return [];
-                $grouped = [];
-                // Group by major_output as it was repeated in the old format
-                foreach ($entries as $entry) {
-                    $mfo = $entry['major_output'] ?? 'Uncategorized';
-                    if (!isset($grouped[$mfo])) {
-                        $grouped[$mfo] = [
-                            'major_output' => $mfo,
-                            'indicators' => []
-                        ];
+        $flatten_data = function($entries) {
+            if (empty($entries)) return [];
+            if (isset($entries[0]['indicators'])) {
+                $flat = [];
+                foreach ($entries as $block) {
+                    $mfo = $block['major_output'] ?? '';
+                    foreach ($block['indicators'] as $ind) {
+                        $ind['major_output'] = $mfo;
+                        $flat[] = $ind;
                     }
-                    $grouped[$mfo]['indicators'][] = $entry;
                 }
-                return array_values($grouped);
-            };
-            $strategic_functions = $transform_legacy($content['strategic_functions'] ?? []);
-            $core_functions = $transform_legacy($content['core_functions'] ?? []);
-            $support_functions = $transform_legacy($content['support_functions'] ?? []);
-        }
+                return $flat;
+            }
+            return $entries;
+        };
+        
+        $strategic_functions = $flatten_data($content['strategic_functions'] ?? []);
+        $core_functions = $flatten_data($content['core_functions'] ?? []);
+        $support_functions = $flatten_data($content['support_functions'] ?? []);
     }
     
     $entries = [
@@ -727,7 +718,7 @@ $conn->close();
                     </tr>
                     <tr>
                         <th class="col-q">Q<sup>1</sup></th>
-                        <th class="col-q">Q<sup>2</sup></th>
+                        <th class="col-q">E<sup>2</sup></th>
                         <th class="col-q">T<sup>3</sup></th>
                         <th class="col-q">A<sup>4</sup></th>
                     </tr>
@@ -743,31 +734,21 @@ $conn->close();
                             <td colspan="10" style="font-weight: bold; background-color: #f0f0f0;"><?php echo htmlspecialchars($section_title) . ' ' . htmlspecialchars($weight); ?></td>
                         </tr>
                     <?php
-                        foreach ($section_entries as $mfo_entry) {
-                            $indicators = $mfo_entry['indicators'] ?? [];
-                            $indicator_count = count($indicators);
-                            if ($indicator_count === 0) continue;
-
-                            $first_indicator = true;
-                            foreach ($indicators as $indicator) {
+                        foreach ($section_entries as $entry) {
                     ?>
                                 <tr>
-                                    <?php if ($first_indicator): ?>
-                                        <td class="col-mfo" rowspan="<?php echo $indicator_count; ?>"><?php echo nl2br(htmlspecialchars($mfo_entry['major_output'])); ?></td>
-                                    <?php endif; ?>
-                                    <td class="col-indicators"><?php echo nl2br(htmlspecialchars($indicator['success_indicators'])); ?></td>
-                                    <td class="col-budget" style="text-align: right;"><?php echo isset($indicator['budget']) && is_numeric($indicator['budget']) ? number_format($indicator['budget'], 2) : 'N/A'; ?></td>
-                                    <td class="col-accountable"><?php echo htmlspecialchars($indicator['accountable']); ?></td>
-                                    <td class="col-accomplishments"><?php echo nl2br(htmlspecialchars($indicator['actual_accomplishments'] ?? '')); ?></td>
-                                    <td class="col-q"><?php echo htmlspecialchars($indicator['q_rating'] ?? ''); ?></td>
-                                    <td class="col-q"><?php echo htmlspecialchars($indicator['e_rating'] ?? ''); ?></td>
-                                    <td class="col-q"><?php echo htmlspecialchars($indicator['t_rating'] ?? ''); ?></td>
-                                    <td class="col-q"><?php echo htmlspecialchars($indicator['a_rating'] ?? ''); ?></td>
-                                    <td class="col-remarks"><?php echo htmlspecialchars($indicator['remarks'] ?? ''); ?></td>
+                                    <td class="col-mfo"><?php echo nl2br(htmlspecialchars($entry['major_output'] ?? '')); ?></td>
+                                    <td class="col-indicators"><?php echo nl2br(htmlspecialchars($entry['success_indicators'] ?? '')); ?></td>
+                                    <td class="col-budget" style="text-align: right;"><?php echo isset($entry['budget']) && is_numeric($entry['budget']) ? number_format($entry['budget'], 2) : 'N/A'; ?></td>
+                                    <td class="col-accountable"><?php echo htmlspecialchars($entry['accountable'] ?? ''); ?></td>
+                                    <td class="col-accomplishments"><?php echo nl2br(htmlspecialchars($entry['actual_accomplishments'] ?? '')); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($entry['q_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($entry['e_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($entry['t_rating'] ?? ''); ?></td>
+                                    <td class="col-q"><?php echo htmlspecialchars($entry['a_rating'] ?? ''); ?></td>
+                                    <td class="col-remarks"><?php echo htmlspecialchars($entry['remarks'] ?? ''); ?></td>
                                 </tr>
                     <?php
-                                $first_indicator = false;
-                            }
                         }
                     };
 

@@ -132,6 +132,21 @@ function getComputationTypes() {
     ];
 }
 
+// Function to generate periods (Semi-annual)
+function generatePeriods() {
+    $current_year = date('Y');
+    $periods = [];
+    
+    // Generate semi-annual periods for the current year and the next year
+    for ($i = 0; $i < 2; $i++) {
+        $year = $current_year + $i;
+        $periods[] = "January-June $year";
+        $periods[] = "July-December $year";
+    }
+    
+    return $periods;
+}
+
 // --- NEW/MODIFIED: Initial setup for dynamic IPCR data ---
 $ipcr_data = []; // Will hold loaded data if editing a draft (not fully implemented in the current file but necessary for logic)
 $computation_type = 'Type1'; // Default type
@@ -326,11 +341,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                                 <label for="period" class="form-label">Evaluation Period</label>
                                 <select class="form-select" name="period" id="period" required>
                                     <option value="">Select Period</option>
-                                    <option value="Q1 <?php echo date('Y'); ?>">Q1 (January-March) <?php echo date('Y'); ?></option>
-                                    <option value="Q2 <?php echo date('Y'); ?>">Q2 (April-June) <?php echo date('Y'); ?></option>
-                                    <option value="Q3 <?php echo date('Y'); ?>">Q3 (July-September) <?php echo date('Y'); ?></option>
-                                    <option value="Q4 <?php echo date('Y'); ?>">Q4 (October-December) <?php echo date('Y'); ?></option>
-                                    <option value="Annual <?php echo date('Y'); ?>">Annual <?php echo date('Y'); ?></option>
+                                    <?php foreach (generatePeriods() as $p): ?>
+                                        <option value="<?php echo $p; ?>"><?php echo $p; ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -467,7 +480,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
                                             $badge_class = 'bg-secondary';
                                             if ($status === 'Pending' || $status === 'For Review') $badge_class = 'bg-warning text-dark';
                                             if ($status === 'Approved') $badge_class = 'bg-success';
-                                            if ($status === 'Rejected') $badge_class = 'bg-danger';
+                                            if ($status === 'For Revision') $badge_class = 'bg-danger';
                                             if ($status === 'Distributed') $badge_class = 'bg-info text-dark';
                                             ?>
                                             <span class="badge <?php echo $badge_class; ?>"><?php echo $status; ?></span>
@@ -480,12 +493,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['distribute_ipcr'])) {
 
                                             // Check if user is a Dept Head AND the record does NOT belong to them
                                             if ($user_role == 'department_head' && $record['user_id'] != $user_id) {
-                                                if (in_array($record['document_status'], ['Distributed', 'For Review', 'Rejected'])) {
+                                                if (in_array($record['document_status'], ['Distributed', 'For Review', 'For Revision'])) {
                                                     $can_edit = true;
                                                 }
                                             } 
-                                            // Regular employees can only edit if Rejected and it IS their own record
-                                            elseif ($user_role == 'regular_employee' && $record['document_status'] == 'Rejected' && $record['user_id'] == $user_id) {
+                                            // Regular employees can only edit if For Revision and it IS their own record
+                                            elseif ($user_role == 'regular_employee' && $record['document_status'] == 'For Revision' && $record['user_id'] == $user_id) {
                                                 $can_edit = true;
                                             }
                                             ?>
